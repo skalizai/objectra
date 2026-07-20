@@ -1,0 +1,172 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getResendClient, EMAIL_FROM } from "@/lib/email/resend";
+import { isDoneStatus, isOverdue } from "@/lib/object-meta";
+import WeeklyDigestEmail from "@/emails/weekly-digest-email";
+import type { AuditLogEntry, DigestDay, ObjectRow, Picklist, Project } from "@/lib/types/database";
+
+const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
+const DAY_KEYS: DigestDay[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+function startOfTodayIso() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function sevenDaysAgoIso() {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d.toISOString();
+}
+
+export interface WeeklyDigestResult {
+  projectsScanned: number;
+  emailsSent: number;
+  emailsFailed: number;
+  emailsSkipped: number;
+}
+
+/** Weekly job (section 7): per project, sends PMs and clients the same
+ * summary the dashboard shows plus what changed this week. `force` bypasses
+ * both the digest_day check and today's dedupe, for the manual "send test
+ * digest" button in project settings. */
+export async function runWeeklyDigest(options?: {
+  projectId?: string;
+  force?: boolean;
+}): Promise<WeeklyDigestResult> {
+  const supabase = createAdminClient();
+  const result: WeeklyDigestResult = { projectsScanned: 0, emailsSent: 0, emailsFailed: 0, emailsSkipped: 0 };
+
+  const todayKey = DAY_KEYS[new Date().getDay()];
+
+  let projectQuery = supabase.from("projects").select("*").eq("status", "active");
+  if (options?.projectId) projectQuery = projectQuery.eq("id", options.projectId);
+  const { data: projects } = await projectQuery;
+
+  const statusCache = new Map<string, Picklist[]>();
+  async function getStatuses(orgId: string) {
+    if (!statusCache.has(orgId)) {
+      const { data } = await supabase.from("picklists").select("*").eq("org_id", orgId).eq("type", "status");
+      statusCache.set(orgId, (data ?? []) as Picklist[]);
+    }
+    return statusCache.get(orgId)!;
+  }
+
+  for (const project of (projects ?? []) as Project[]) {
+    const { data: settings } = await supabase
+      .from("notification_settings")
+      .select("*")
+      .eq("project_id", project.id)
+      .maybeSingle();
+
+    if (!settings || !settings.weekly_digest_enabled) continue;
+    if (!options?.force && settings.digest_day !== todayKey) continue;
+    result.projectsScanned += 1;
+
+    const statuses = await getStatuses(project.org_id);
+    const { data: objects } = await supabase.from("objects").select("*").eq("project_id", project.id);
+    const objectList = (objects ?? []) as ObjectRow[];
+
+    const live = objectList.filter((o) => isDoneStatus(o.status, statuses)).length;
+    const atRisk = objectList.filter((o) => isOverdue(o.due_date, isDoneStatus(o.status, statuses)));
+    const total = objectList.length;
+
+    const { data: recentAudit } = await supabase
+      .from("audit_log")
+      .select("*, object:objects(title, wricef_id)")
+      .eq("field", "status")
+      .gte("changed_at", sevenDaysAgoIso())
+      .in(
+        "object_id",
+        objectList.map((o) => o.id),
+      )
+      .order("changed_at", { ascending: false })
+      .limit(10);
+
+    const movedThisWeek = ((recentAudit ?? []) as unknown as Array<
+      AuditLogEntry & { object: { title: string; wricef_id: string | null } }
+    >).map((entry) => `${entry.object.wricef_id ?? entry.object.title} moved to ${entry.new_value}`);
+
+    const { data: recipients } = await supabase
+      .from("project_members")
+      .select("role, profile:profiles(full_name, email)")
+      .eq("project_id", project.id)
+      .eq("is_active", true)
+      .in(
+        "role",
+        [
+          ...(settings.digest_recipients?.pms !== false ? ["project_manager", "technical_lead"] : []),
+          ...(settings.digest_recipients?.clients !== false ? ["client"] : []),
+        ],
+      );
+
+    if (!recipients || recipients.length === 0) continue;
+
+    const { data: alreadySentToday } = options?.force
+      ? { data: [] }
+      : await supabase
+          .from("email_log")
+          .select("to_email")
+          .eq("type", "weekly_digest")
+          .eq("project_id", project.id)
+          .gte("sent_at", startOfTodayIso());
+    const alreadySent = new Set((alreadySentToday ?? []).map((r) => r.to_email));
+
+    const percentComplete = total === 0 ? 0 : Math.round((live / total) * 100);
+    const subject = `Weekly status — ${project.name}: ${percentComplete}% complete`;
+
+    for (const recipient of recipients as unknown as Array<{
+      profile: { full_name: string; email: string };
+    }>) {
+      if (alreadySent.has(recipient.profile.email)) {
+        result.emailsSkipped += 1;
+        continue;
+      }
+
+      try {
+        const sendResult = await getResendClient().emails.send({
+          from: EMAIL_FROM,
+          to: recipient.profile.email,
+          subject,
+          react: WeeklyDigestEmail({
+            recipientName: recipient.profile.full_name,
+            projectName: project.name,
+            total,
+            live,
+            inFlight: total - live - atRisk.length,
+            atRisk: atRisk.length,
+            percentComplete,
+            movedThisWeek,
+            overdue: atRisk.slice(0, 10).map((o) => ({ title: o.title, dueDate: o.due_date! })),
+            appUrl: APP_URL,
+          }),
+        });
+
+        await supabase.from("email_log").insert({
+          type: "weekly_digest",
+          to_email: recipient.profile.email,
+          subject,
+          project_id: project.id,
+          status: sendResult.error ? "failed" : "sent",
+          provider_id: sendResult.data?.id ?? null,
+          error: sendResult.error?.message ?? null,
+        });
+
+        if (sendResult.error) result.emailsFailed += 1;
+        else result.emailsSent += 1;
+      } catch (err) {
+        result.emailsFailed += 1;
+        await supabase.from("email_log").insert({
+          type: "weekly_digest",
+          to_email: recipient.profile.email,
+          subject,
+          project_id: project.id,
+          status: "failed",
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
+    }
+  }
+
+  return result;
+}
