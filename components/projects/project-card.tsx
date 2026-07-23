@@ -23,11 +23,11 @@ export function ProjectCard({ project, index }: { project: ProjectWithPm; index:
       whileHover={{ y: -3 }}
     >
       <Link
-        // Straight to the objects tab — avoids bouncing through
-        // /projects/[id]'s server redirect(), which was intermittently
-        // tripping up Next's router internals ("Rendered more hooks than
-        // during the previous render" inside app-router.tsx) under Turbopack.
-        href={`/projects/${project.id}/objects`}
+        // /projects/[id] now renders its own Overview content directly
+        // (no server redirect), so linking straight here is safe — the
+        // earlier router-internals crash was specifically caused by
+        // landing on a route that itself issued a redirect().
+        href={`/projects/${project.id}`}
         className="block rounded-card border border-border bg-surface p-5 transition-colors hover:border-border-2"
         style={{ boxShadow: "var(--shadow-card)" }}
       >

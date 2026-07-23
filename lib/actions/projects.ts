@@ -22,6 +22,8 @@ export async function createProject(
   const startDate = String(formData.get("start_date") ?? "").trim();
   const targetGoLive = String(formData.get("target_go_live") ?? "").trim();
   const pmId = String(formData.get("pm_id") ?? "").trim();
+  const companyCode = String(formData.get("company_code") ?? "").trim();
+  const stream = String(formData.get("stream") ?? "").trim();
 
   if (!name || !clientName || !code) {
     return { error: "Name, client, and code are required." };
@@ -39,6 +41,8 @@ export async function createProject(
       start_date: startDate || null,
       target_go_live: targetGoLive || null,
       pm_id: pmId || viewer.user.id,
+      company_code: companyCode || null,
+      stream: stream || null,
     })
     .select("id")
     .single();
@@ -59,9 +63,9 @@ export async function createProject(
   await supabase.from("notification_settings").insert({ project_id: project.id });
 
   revalidatePath("/projects");
-  // Straight to the objects tab — see the comment on ProjectCard's Link for
-  // why we avoid the bare /projects/[id] route's own redirect() here.
-  redirect(`/projects/${project.id}/objects`);
+  // /projects/[id] renders the Overview page directly (no server redirect),
+  // so it's safe to land here — see the comment on ProjectCard's Link.
+  redirect(`/projects/${project.id}`);
 }
 
 export interface UpdateProjectState {
@@ -86,6 +90,8 @@ export async function updateProject(
   const startDate = String(formData.get("start_date") ?? "").trim();
   const targetGoLive = String(formData.get("target_go_live") ?? "").trim();
   const pmId = String(formData.get("pm_id") ?? "").trim();
+  const companyCode = String(formData.get("company_code") ?? "").trim();
+  const stream = String(formData.get("stream") ?? "").trim();
 
   if (!name || !clientName || !code) {
     return { error: "Name, client, and code are required.", success: false };
@@ -102,6 +108,8 @@ export async function updateProject(
       start_date: startDate || null,
       target_go_live: targetGoLive || null,
       pm_id: pmId || null,
+      company_code: companyCode || null,
+      stream: stream || null,
     })
     .eq("id", projectId);
 

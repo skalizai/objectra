@@ -18,6 +18,8 @@ const AUDITED_FIELDS: (keyof ObjectRow)[] = [
   "fds_received",
   "admin_note",
   "comments",
+  "company_code",
+  "stream",
 ];
 
 /** PM/admin writes go through the RLS-checked client; the audit trail write
@@ -63,6 +65,21 @@ export async function createObject(
   }
 
   const supabase = await createClient();
+
+  let companyCode = String(formData.get("company_code") ?? "").trim();
+  let stream = String(formData.get("stream") ?? "").trim();
+  if (!companyCode || !stream) {
+    // Default new objects to the parent project's company code/stream so
+    // every object is still tagged even if the field is left blank here.
+    const { data: project } = await supabase
+      .from("projects")
+      .select("company_code, stream")
+      .eq("id", projectId)
+      .single();
+    companyCode = companyCode || project?.company_code || "";
+    stream = stream || project?.stream || "";
+  }
+
   const { error } = await supabase.from("objects").insert({
     project_id: projectId,
     title,
@@ -76,6 +93,8 @@ export async function createObject(
     due_date: String(formData.get("due_date") ?? "").trim() || null,
     fds_received: formData.get("fds_received") === "yes",
     description: String(formData.get("description") ?? "").trim() || null,
+    company_code: companyCode || null,
+    stream: stream || null,
     created_by: viewer.user.id,
     updated_by: viewer.user.id,
   });
@@ -103,6 +122,8 @@ export async function updateObjectByManager(
       | "description"
       | "admin_note"
       | "comments"
+      | "company_code"
+      | "stream"
     >
   >,
 ) {

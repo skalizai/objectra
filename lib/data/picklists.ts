@@ -5,6 +5,8 @@ export interface PicklistBundle {
   modules: Picklist[];
   complexities: Picklist[];
   statuses: Picklist[];
+  companyCodes: Picklist[];
+  streams: Picklist[];
 }
 
 export async function getPicklists(orgId: string): Promise<PicklistBundle> {
@@ -23,5 +25,7 @@ export async function getPicklists(orgId: string): Promise<PicklistBundle> {
     modules: byType("module"),
     complexities: byType("complexity"),
     statuses: byType("status"),
+    companyCodes: byType("company_code"),
+    streams: byType("stream"),
   };
 }

@@ -99,3 +99,25 @@ export async function updateResourceProjectAllocation(projectMemberId: string, a
   revalidatePath("/resources");
   return { error: null };
 }
+
+export interface DeleteResourceState {
+  error: string | null;
+}
+
+/** Removes one resource from the roster — RLS (resources_write) scopes
+ * this to org_admin/PM/technical_lead already; only the targeted row is
+ * touched, every other resource is untouched. Cascades to that resource's
+ * own object_assignments (so they stop showing as a consultant anywhere)
+ * but leaves their profile/login and project_members untouched — deleting
+ * a roster entry doesn't revoke access, it just stops tracking them here. */
+export async function deleteResource(resourceId: string): Promise<DeleteResourceState> {
+  const viewer = await getViewer();
+  if (!viewer) return { error: "Not signed in." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("resources").delete().eq("id", resourceId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/resources");
+  return { error: null };
+}

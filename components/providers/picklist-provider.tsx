@@ -29,6 +29,14 @@ export function useComplexities() {
   return usePicklists().complexities;
 }
 
+export function useCompanyCodes() {
+  return usePicklists().companyCodes;
+}
+
+export function useStreams() {
+  return usePicklists().streams;
+}
+
 export function useStatuses() {
   return usePicklists().statuses;
 }

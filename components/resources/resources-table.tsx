@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { IconAlertTriangle, IconCircleCheck } from "@tabler/icons-react";
 import { InviteButton } from "@/components/resources/invite-button";
+import { DeleteResourceButton } from "@/components/resources/delete-resource-button";
 import { useModules } from "@/components/providers/picklist-provider";
 import { updateResource, updateResourceProjectAllocation } from "@/lib/actions/resources";
 import type { ResourceWithAllocation } from "@/lib/data/resources";
@@ -37,6 +38,10 @@ export function ResourcesTable({
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...fields } : r)));
   }
 
+  function removeRow(id: string) {
+    setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
   return (
     <div className="overflow-x-auto rounded-card border border-border">
       <table className="w-full min-w-[980px] border-collapse text-sm">
@@ -49,6 +54,7 @@ export function ResourcesTable({
             <th className="px-4 py-2.5 font-medium">Allocation</th>
             <th className="px-4 py-2.5 font-medium">Location</th>
             <th className="px-4 py-2.5 font-medium">Access</th>
+            {canInvite && <th className="px-4 py-2.5 font-medium"></th>}
           </tr>
         </thead>
         <tbody>
@@ -226,6 +232,16 @@ export function ResourcesTable({
                   <span className="text-xs text-text-3">Not invited</span>
                 )}
               </td>
+
+              {canInvite && (
+                <td className="px-4 py-2.5">
+                  <DeleteResourceButton
+                    resourceId={resource.id}
+                    resourceName={resource.full_name}
+                    onDeleted={() => removeRow(resource.id)}
+                  />
+                </td>
+              )}
             </motion.tr>
           ))}
         </tbody>

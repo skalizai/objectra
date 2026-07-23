@@ -8,6 +8,14 @@ import type { Picklist, PicklistType } from "@/lib/types/database";
 
 const initialState: PicklistActionState = { error: null };
 
+const PLACEHOLDER: Record<PicklistType, string> = {
+  module: "e.g. MM",
+  complexity: "e.g. Medium",
+  status: "e.g. In Review",
+  company_code: "e.g. 1000",
+  stream: "e.g. Finance",
+};
+
 export function PicklistManager({
   type,
   title,
@@ -93,7 +101,7 @@ export function PicklistManager({
         <input
           name="value"
           required
-          placeholder={type === "module" ? "e.g. MM" : type === "complexity" ? "e.g. Medium" : "e.g. In Review"}
+          placeholder={PLACEHOLDER[type]}
           className="h-9 flex-1 min-w-[140px] rounded-control border border-border-2 bg-surface-2 px-2.5 text-sm text-text placeholder:text-text-3 focus:border-brass focus-visible:outline-none"
         />
         {supportsColorAndDone && (

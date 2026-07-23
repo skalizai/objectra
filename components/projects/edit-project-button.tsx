@@ -5,6 +5,7 @@ import { IconAlertCircle, IconCircleCheck, IconPencil } from "@tabler/icons-reac
 import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { useCompanyCodes, useStreams } from "@/components/providers/picklist-provider";
 import { updateProject, type UpdateProjectState } from "@/lib/actions/projects";
 import type { Project } from "@/lib/types/database";
 
@@ -19,6 +20,8 @@ export function EditProjectButton({
   project: Project;
   pmOptions: { id: string; full_name: string }[];
 }) {
+  const companyCodes = useCompanyCodes();
+  const streams = useStreams();
   const [open, setOpen] = useState(false);
   const boundAction = updateProject.bind(null, project.id);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
@@ -103,6 +106,32 @@ export function EditProjectButton({
                 type="date"
                 defaultValue={project.target_go_live ?? ""}
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="company_code">Company code</Label>
+              <select
+                id="company_code"
+                name="company_code"
+                className={selectClass}
+                defaultValue={project.company_code ?? ""}
+              >
+                <option value="">—</option>
+                {companyCodes.map((c) => (
+                  <option key={c.id} value={c.value}>{c.value}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="stream">Stream</Label>
+              <select id="stream" name="stream" className={selectClass} defaultValue={project.stream ?? ""}>
+                <option value="">—</option>
+                {streams.map((s) => (
+                  <option key={s.id} value={s.value}>{s.value}</option>
+                ))}
+              </select>
             </div>
           </div>
 

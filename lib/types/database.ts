@@ -16,7 +16,7 @@ export type ObjectType =
 // layer, not a fixed DB enum, so admins can maintain their own list.
 export type ObjectStatus = string;
 export type AssignedRole = "developer" | "functional";
-export type PicklistType = "module" | "complexity" | "status";
+export type PicklistType = "module" | "complexity" | "status" | "company_code" | "stream";
 export type ConsultantType = "functional" | "technical";
 export type ResourceLocation = "onsite" | "offshore";
 export type InvitationRole = "org_admin" | "project_manager" | "technical_lead" | "member" | "client";
@@ -62,6 +62,8 @@ export interface Project {
   start_date: string | null;
   target_go_live: string | null;
   pm_id: string | null;
+  company_code: string | null;
+  stream: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -86,6 +88,7 @@ export interface ObjectRow {
   description: string | null;
   module: string | null;
   wave: string | null;
+  stream: string | null;
   sprint: string | null;
   lob: string | null;
   clean_core: string | null;
@@ -182,6 +185,7 @@ export interface ClientObjectRow {
   title: string;
   module: string | null;
   wave: string | null;
+  stream: string | null;
   sprint: string | null;
   status: ObjectStatus;
   priority: string | null;

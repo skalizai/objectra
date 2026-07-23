@@ -94,6 +94,18 @@ export default async function SettingsPage({
               description="Complexity levels available on objects."
               items={picklists.complexities}
             />
+            <PicklistManager
+              type="company_code"
+              title="Company codes"
+              description="Company codes available on projects and objects (e.g. 1000, 2000)."
+              items={picklists.companyCodes}
+            />
+            <PicklistManager
+              type="stream"
+              title="Streams"
+              description="Delivery streams available on projects and objects (e.g. Finance, Logistics)."
+              items={picklists.streams}
+            />
           </div>
           <PicklistManager
             type="status"

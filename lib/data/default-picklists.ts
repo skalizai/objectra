@@ -14,6 +14,8 @@ export const DEFAULT_STATUS_LABELS = [
 export const DEFAULT_PICKLIST_BUNDLE: PicklistBundle = {
   modules: [],
   complexities: [],
+  companyCodes: [],
+  streams: [],
   statuses: DEFAULT_STATUS_LABELS.map((s, i) => ({
     id: `default-${i}`,
     org_id: "",

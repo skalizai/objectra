@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Drawer } from "@/components/ui/drawer";
 import { WricefGlyph } from "@/components/ui/wricef-glyph";
 import { Label } from "@/components/ui/input";
-import { useComplexities, useModules, useStatuses } from "@/components/providers/picklist-provider";
+import {
+  useCompanyCodes,
+  useComplexities,
+  useModules,
+  useStatuses,
+  useStreams,
+} from "@/components/providers/picklist-provider";
 import { setObjectAssignee, updateObjectByManager } from "@/lib/actions/objects";
 import type { ObjectWithAssignees } from "@/lib/data/objects";
 import type { AssignedRole } from "@/lib/types/database";
@@ -64,6 +70,8 @@ function ObjectDetailForm({
   const modules = useModules();
   const complexities = useComplexities();
   const statuses = useStatuses();
+  const companyCodes = useCompanyCodes();
+  const streams = useStreams();
   const [local, setLocal] = useState(object);
 
   function patch(fields: Parameters<typeof updateObjectByManager>[2]) {
@@ -135,6 +143,43 @@ function ObjectDetailForm({
             </select>
           ) : (
             <p className="text-sm text-text-2">{local.complexity || "—"}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Company code</Label>
+          {canEdit ? (
+            <select
+              className={selectClass}
+              value={local.company_code ?? ""}
+              onChange={(e) => patch({ company_code: e.target.value })}
+            >
+              <option value="">—</option>
+              {companyCodes.map((c) => (
+                <option key={c.id} value={c.value}>{c.value}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm text-text-2">{local.company_code || "—"}</p>
+          )}
+        </div>
+        <div>
+          <Label>Stream</Label>
+          {canEdit ? (
+            <select
+              className={selectClass}
+              value={local.stream ?? ""}
+              onChange={(e) => patch({ stream: e.target.value })}
+            >
+              <option value="">—</option>
+              {streams.map((s) => (
+                <option key={s.id} value={s.value}>{s.value}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-sm text-text-2">{local.stream || "—"}</p>
           )}
         </div>
       </div>

@@ -5,7 +5,12 @@ import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
 import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { useComplexities, useModules } from "@/components/providers/picklist-provider";
+import {
+  useCompanyCodes,
+  useComplexities,
+  useModules,
+  useStreams,
+} from "@/components/providers/picklist-provider";
 import { createObject, type FormActionState } from "@/lib/actions/objects";
 import { OBJECT_TYPE_META } from "@/lib/object-meta";
 
@@ -16,6 +21,8 @@ const selectClass =
 export function AddObjectButton({ projectId }: { projectId: string }) {
   const modules = useModules();
   const complexities = useComplexities();
+  const companyCodes = useCompanyCodes();
+  const streams = useStreams();
   const [open, setOpen] = useState(false);
   const boundAction = createObject.bind(null, projectId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
@@ -81,6 +88,27 @@ export function AddObjectButton({ projectId }: { projectId: string }) {
                 <option value="">—</option>
                 {complexities.map((c) => (
                   <option key={c.id} value={c.value}>{c.value}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="company_code">Company code</Label>
+              <select id="company_code" name="company_code" className={selectClass} defaultValue="">
+                <option value="">Use project default</option>
+                {companyCodes.map((c) => (
+                  <option key={c.id} value={c.value}>{c.value}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="stream">Stream</Label>
+              <select id="stream" name="stream" className={selectClass} defaultValue="">
+                <option value="">Use project default</option>
+                {streams.map((s) => (
+                  <option key={s.id} value={s.value}>{s.value}</option>
                 ))}
               </select>
             </div>

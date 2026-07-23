@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 export function WorkspaceTabs({ projectId }: { projectId: string }) {
   const pathname = usePathname();
   const tabs = [
+    { href: `/projects/${projectId}`, label: "Overview", exact: true },
     { href: `/projects/${projectId}/objects`, label: "Objects register" },
     { href: `/projects/${projectId}/pipeline`, label: "Pipeline board" },
     { href: `/projects/${projectId}/assignments`, label: "Assignments" },
@@ -16,7 +17,7 @@ export function WorkspaceTabs({ projectId }: { projectId: string }) {
   return (
     <div className="flex gap-1 border-b border-border">
       {tabs.map((tab) => {
-        const active = pathname.startsWith(tab.href);
+        const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
         return (
           <Link
             key={tab.href}
