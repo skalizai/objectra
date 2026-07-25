@@ -33,6 +33,17 @@ export function ResourcesTable({
 }) {
   const modules = useModules();
   const [rows, setRows] = useState(resources);
+  // `resources` is copied into local state so inline edits/deletes can
+  // update optimistically without a full server round trip — but that
+  // means this must resync whenever the parent re-renders with a
+  // genuinely new list (e.g. a resource was just added elsewhere).
+  // Adjusted during render (React's documented pattern for this) rather
+  // than in an effect, which would cause an extra cascading render.
+  const [prevResources, setPrevResources] = useState(resources);
+  if (resources !== prevResources) {
+    setPrevResources(resources);
+    setRows(resources);
+  }
 
   function patchRow(id: string, fields: Partial<ResourceWithAllocation>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...fields } : r)));
