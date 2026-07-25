@@ -3,6 +3,7 @@ import { Space_Grotesk, Inter, IBM_Plex_Mono } from "next/font/google";
 import { MotionConfig } from "framer-motion";
 import { PicklistProvider } from "@/components/providers/picklist-provider";
 import { GlobalErrorListener } from "@/components/app-shell/global-error-listener";
+import { NavigationWatchdog } from "@/components/app-shell/navigation-watchdog";
 import { DEFAULT_PICKLIST_BUNDLE } from "@/lib/data/default-picklists";
 import "./globals.css";
 
@@ -45,6 +46,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-page text-text font-sans">
         <GlobalErrorListener />
+        <NavigationWatchdog />
         <MotionConfig reducedMotion="user">
           <PicklistProvider bundle={DEFAULT_PICKLIST_BUNDLE}>{children}</PicklistProvider>
         </MotionConfig>
