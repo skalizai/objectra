@@ -28,13 +28,13 @@ export async function addPicklistItem(
   const supabase = await createClient();
   const { data: existing } = await supabase
     .from("picklists")
-    .select("id")
+    .select("sort_order")
     .eq("org_id", viewer.profile.org_id)
     .eq("type", type)
     .order("sort_order", { ascending: false })
     .limit(1);
 
-  const nextSortOrder = existing?.[0] ? undefined : 0;
+  const nextSortOrder = existing?.[0] ? existing[0].sort_order + 1 : 0;
 
   const { error } = await supabase.from("picklists").upsert(
     {
@@ -44,7 +44,7 @@ export async function addPicklistItem(
       color: type === "status" ? color : null,
       is_done: type === "status" ? isDone : false,
       is_active: true,
-      ...(nextSortOrder !== undefined ? { sort_order: nextSortOrder } : {}),
+      sort_order: nextSortOrder,
     },
     { onConflict: "org_id,type,value" },
   );

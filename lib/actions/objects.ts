@@ -19,6 +19,7 @@ const AUDITED_FIELDS: (keyof ObjectRow)[] = [
   "admin_note",
   "comments",
   "company_code",
+  "business_unit",
   "stream",
 ];
 
@@ -94,6 +95,7 @@ export async function createObject(
     fds_received: formData.get("fds_received") === "yes",
     description: String(formData.get("description") ?? "").trim() || null,
     company_code: companyCode || null,
+    business_unit: String(formData.get("business_unit") ?? "").trim().slice(0, 10) || null,
     stream: stream || null,
     created_by: viewer.user.id,
     updated_by: viewer.user.id,
@@ -123,12 +125,15 @@ export async function updateObjectByManager(
       | "admin_note"
       | "comments"
       | "company_code"
+      | "business_unit"
       | "stream"
     >
   >,
 ) {
   const viewer = await getViewer();
   if (!viewer) redirect("/sign-in");
+
+  if (patch.business_unit) patch.business_unit = patch.business_unit.slice(0, 10);
 
   const supabase = await createClient();
   const { data: before } = await supabase.from("objects").select("*").eq("id", objectId).single();

@@ -93,7 +93,7 @@ export function AddObjectButton({ projectId }: { projectId: string }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <Label htmlFor="company_code">Company code</Label>
               <select id="company_code" name="company_code" className={selectClass} defaultValue="">
@@ -102,6 +102,10 @@ export function AddObjectButton({ projectId }: { projectId: string }) {
                   <option key={c.id} value={c.value}>{c.value}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <Label htmlFor="business_unit">Business unit</Label>
+              <Input id="business_unit" name="business_unit" maxLength={10} placeholder="e.g. US10" />
             </div>
             <div>
               <Label htmlFor="stream">Stream</Label>

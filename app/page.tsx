@@ -11,8 +11,8 @@ export default function LandingPage() {
       <LandingNav />
       <main className="flex-1">
         <Hero />
-        <FeatureGrid />
         <PipelinePreview />
+        <FeatureGrid />
         <CtaBand />
       </main>
       <LandingFooter />

@@ -98,6 +98,7 @@ export interface ObjectRow {
   priority_rank: number | null;
   status: ObjectStatus;
   company_code: string | null;
+  business_unit: string | null;
   customizing_request: string | null;
   transport_requests: string | null;
   transport_type: string | null;

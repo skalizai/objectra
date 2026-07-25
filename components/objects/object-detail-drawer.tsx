@@ -147,7 +147,7 @@ function ObjectDetailForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div>
           <Label>Company code</Label>
           {canEdit ? (
@@ -163,6 +163,21 @@ function ObjectDetailForm({
             </select>
           ) : (
             <p className="text-sm text-text-2">{local.company_code || "—"}</p>
+          )}
+        </div>
+        <div>
+          <Label>Business unit</Label>
+          {canEdit ? (
+            <input
+              type="text"
+              maxLength={10}
+              defaultValue={local.business_unit ?? ""}
+              onBlur={(e) => patch({ business_unit: e.target.value.slice(0, 10) || undefined })}
+              placeholder="e.g. US10"
+              className={selectClass}
+            />
+          ) : (
+            <p className="text-sm text-text-2">{local.business_unit || "—"}</p>
           )}
         </div>
         <div>

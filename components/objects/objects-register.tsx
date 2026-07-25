@@ -87,7 +87,7 @@ export function ObjectsRegister({
       </div>
 
       <div className="overflow-x-auto rounded-card border border-border">
-        <table className="w-full min-w-[1300px] border-collapse text-sm">
+        <table className="w-full min-w-[1420px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-left text-xs text-text-3">
               <th className="px-4 py-2.5 font-medium">Object ID</th>
@@ -95,6 +95,7 @@ export function ObjectsRegister({
               <th className="px-4 py-2.5 font-medium">Module</th>
               <th className="px-4 py-2.5 font-medium">Complexity</th>
               <th className="px-4 py-2.5 font-medium">Company code</th>
+              <th className="px-4 py-2.5 font-medium">Business unit</th>
               <th className="px-4 py-2.5 font-medium">Stream</th>
               <th className="px-4 py-2.5 font-medium">Functional consultant</th>
               <th className="px-4 py-2.5 font-medium">Technical consultant</th>
@@ -123,6 +124,7 @@ export function ObjectsRegister({
                 <td className="px-4 py-2.5 text-text-2">{obj.module || "—"}</td>
                 <td className="px-4 py-2.5 text-text-2">{obj.complexity || "—"}</td>
                 <td className="px-4 py-2.5 text-text-2">{obj.company_code || "—"}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-text-2">{obj.business_unit || "—"}</td>
                 <td className="px-4 py-2.5 text-text-2">{obj.stream || "—"}</td>
                 <td className="px-4 py-2.5 text-text-2">{consultantName(obj, "functional")}</td>
                 <td className="px-4 py-2.5 text-text-2">{consultantName(obj, "developer")}</td>
