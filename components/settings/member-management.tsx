@@ -19,6 +19,12 @@ const inputClass =
 
 export function MemberManagement({ members }: { members: MemberWithMemberships[] }) {
   const [rows, setRows] = useState(members);
+  // See ResourcesTable for why this resync is needed.
+  const [prevMembers, setPrevMembers] = useState(members);
+  if (members !== prevMembers) {
+    setPrevMembers(members);
+    setRows(members);
+  }
 
   return (
     <div className="rounded-card border border-border bg-surface p-5" style={{ boxShadow: "var(--shadow-card)" }}>

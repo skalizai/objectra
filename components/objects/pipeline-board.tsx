@@ -20,6 +20,16 @@ export function PipelineBoard({
 }) {
   const statuses = useStatuses();
   const [items, setItems] = useState(objects);
+  // See ResourcesTable for why this resync is needed: `objects` is copied
+  // into local state for optimistic drag/drop-style updates, so this must
+  // catch up whenever the parent re-renders with a genuinely new list
+  // while this component stays mounted (e.g. staying on this tab while
+  // objects change elsewhere). Adjusted during render, not in an effect.
+  const [prevObjects, setPrevObjects] = useState(objects);
+  if (objects !== prevObjects) {
+    setPrevObjects(objects);
+    setItems(objects);
+  }
 
   function move(objectId: string, status: ObjectStatus) {
     setItems((prev) => prev.map((o) => (o.id === objectId ? { ...o, status } : o)));

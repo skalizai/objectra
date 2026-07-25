@@ -51,6 +51,12 @@ export function AssignmentsTable({
 }) {
   const statuses = useStatuses();
   const [rows, setRows] = useState(objects);
+  // See ResourcesTable for why this resync is needed.
+  const [prevObjects, setPrevObjects] = useState(objects);
+  if (objects !== prevObjects) {
+    setPrevObjects(objects);
+    setRows(objects);
+  }
 
   function patchRow(id: string, fields: Partial<ObjectWithAssignees>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...fields } : r)));
