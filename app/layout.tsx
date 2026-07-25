@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Inter, IBM_Plex_Mono } from "next/font/google";
 import { MotionConfig } from "framer-motion";
 import { PicklistProvider } from "@/components/providers/picklist-provider";
+import { GlobalErrorListener } from "@/components/app-shell/global-error-listener";
 import { DEFAULT_PICKLIST_BUNDLE } from "@/lib/data/default-picklists";
 import "./globals.css";
 
@@ -43,6 +44,7 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${inter.variable} ${plexMono.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col bg-page text-text font-sans">
+        <GlobalErrorListener />
         <MotionConfig reducedMotion="user">
           <PicklistProvider bundle={DEFAULT_PICKLIST_BUNDLE}>{children}</PicklistProvider>
         </MotionConfig>

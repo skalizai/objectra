@@ -8,7 +8,8 @@ function isPublicPath(pathname: string) {
   return (
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/jobs") // cron routes authenticate via CRON_SECRET
+    pathname.startsWith("/api/jobs") || // cron routes authenticate via CRON_SECRET
+    pathname === "/api/client-error" // must log even if the crash itself is an auth-timing issue
   );
 }
 

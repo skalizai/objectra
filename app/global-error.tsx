@@ -1,23 +1,21 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportAndMaybeReload } from "@/lib/client-error-reporting";
 
 // Catches crashes outside app/(app)/error.tsx's reach (e.g. the root
 // layout itself). Replaces the whole document when triggered, so it can't
 // rely on globals.css having loaded — kept self-contained with inline
 // styles. Same auto-reload rationale as app/(app)/error.tsx.
-const GUARD_KEY = "objectra:last-auto-reload";
-const GUARD_WINDOW_MS = 4000;
-
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
     console.error(error);
-    const last = Number(sessionStorage.getItem(GUARD_KEY) ?? 0);
-    const now = Date.now();
-    if (now - last > GUARD_WINDOW_MS) {
-      sessionStorage.setItem(GUARD_KEY, String(now));
-      window.location.reload();
-    }
+    reportAndMaybeReload({
+      message: error.message,
+      stack: error.stack,
+      digest: error.digest,
+      source: "global-error-boundary",
+    });
   }, [error]);
 
   return (
@@ -40,10 +38,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
       >
         <p style={{ fontSize: 14, color: "#a6adb8" }}>Something went wrong.</p>
         <button
-          onClick={() => {
-            sessionStorage.removeItem(GUARD_KEY);
-            window.location.reload();
-          }}
+          onClick={() => window.location.reload()}
           style={{
             borderRadius: 10,
             border: "1px solid #3a4048",
