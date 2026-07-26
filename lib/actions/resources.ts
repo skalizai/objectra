@@ -55,6 +55,8 @@ export async function addResource(
 const ALLOWED_ALLOCATIONS = [25, 50, 75, 100];
 
 export interface UpdateResourceFields {
+  full_name?: string;
+  email?: string;
   consultant_type?: string | null;
   role_title?: string | null;
   primary_module?: string | null;
@@ -62,8 +64,11 @@ export interface UpdateResourceFields {
   allocation_pct?: number;
 }
 
-/** Edits a roster row directly — type/role/area/location, and (for
- * resources not yet invited to any project) their planned allocation %. */
+/** Edits a roster row directly — name/email, type/role/area/location, and
+ * (for resources not yet invited to any project) their planned
+ * allocation %. Editing name/email here only updates the roster entry —
+ * if the resource has already been invited, their actual login email and
+ * profile name are separate and unaffected. */
 export async function updateResource(resourceId: string, fields: UpdateResourceFields) {
   const viewer = await getViewer();
   if (!viewer) return { error: "Not signed in." };
@@ -72,9 +77,21 @@ export async function updateResource(resourceId: string, fields: UpdateResourceF
     return { error: "Allocation must be 25, 50, 75, or 100%." };
   }
 
+  const update: UpdateResourceFields = { ...fields };
+  if (update.full_name !== undefined) {
+    update.full_name = update.full_name.trim();
+    if (!update.full_name) return { error: "Name is required." };
+  }
+  if (update.email !== undefined) {
+    update.email = update.email.trim().toLowerCase();
+    if (!update.email || !update.email.includes("@")) return { error: "Enter a valid email." };
+  }
+
   const supabase = await createClient();
-  const { error } = await supabase.from("resources").update(fields).eq("id", resourceId);
-  if (error) return { error: error.message };
+  const { error } = await supabase.from("resources").update(update).eq("id", resourceId);
+  if (error) {
+    return { error: error.code === "23505" ? "A resource with this email already exists." : error.message };
+  }
 
   revalidatePath("/resources");
   return { error: null };

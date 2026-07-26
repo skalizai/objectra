@@ -61,6 +61,24 @@ export function ResourcesTable({
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
+  const [rowErrors, setRowErrors] = useState<Record<string, string | null>>({});
+
+  /** Returns false if the email couldn't be saved, so the caller can reset
+   * the (uncontrolled) input back to the last good value. */
+  async function commitEmail(resource: ResourceWithAllocation, rawValue: string): Promise<boolean> {
+    const email = rawValue.trim().toLowerCase();
+    if (!email || email === resource.email) return true;
+    patchRow(resource.id, { email });
+    const result = await updateResource(resource.id, { email });
+    if (result?.error) {
+      patchRow(resource.id, { email: resource.email });
+      setRowErrors((prev) => ({ ...prev, [resource.id]: result.error }));
+      return false;
+    }
+    setRowErrors((prev) => ({ ...prev, [resource.id]: null }));
+    return true;
+  }
+
   const counts = {
     all: rows.length,
     functional: rows.filter((r) => r.consultant_type === "functional").length,
@@ -127,10 +145,41 @@ export function ResourcesTable({
                     >
                       {initials(resource.full_name) || "?"}
                     </span>
-                    <div className="min-w-0">
-                      <div className="truncate text-text">{resource.full_name}</div>
-                      <div className="truncate text-xs text-text-3">{resource.email}</div>
-                    </div>
+                    {canInvite ? (
+                      <div className="min-w-0 flex-1">
+                        <input
+                          defaultValue={resource.full_name}
+                          className={`${inputClass} w-full`}
+                          onBlur={(e) => {
+                            const full_name = e.target.value.trim();
+                            if (!full_name || full_name === resource.full_name) {
+                              e.target.value = resource.full_name;
+                              return;
+                            }
+                            patchRow(resource.id, { full_name });
+                            void updateResource(resource.id, { full_name });
+                          }}
+                        />
+                        <input
+                          defaultValue={resource.email}
+                          className={`${inputClass} mt-1 w-full text-xs`}
+                          onBlur={async (e) => {
+                            const ok = await commitEmail(resource, e.target.value);
+                            if (!ok) e.target.value = resource.email;
+                          }}
+                        />
+                        {rowErrors[resource.id] && (
+                          <p className="mt-0.5 text-[10px]" style={{ color: "var(--status-overdue)" }}>
+                            {rowErrors[resource.id]}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="min-w-0">
+                        <div className="truncate text-text">{resource.full_name}</div>
+                        <div className="truncate text-xs text-text-3">{resource.email}</div>
+                      </div>
+                    )}
                   </div>
                 </td>
 
