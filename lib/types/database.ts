@@ -3,7 +3,7 @@
 // hand-written shape in sync if you do.
 
 export type ProjectStatus = "active" | "paused" | "closed";
-export type ProjectMemberRole = "project_manager" | "technical_lead" | "member" | "client";
+export type ProjectMemberRole = "project_manager" | "technical_lead" | "pmo" | "member" | "client";
 export type ObjectType =
   | "Workflow"
   | "Report"
@@ -19,9 +19,9 @@ export type AssignedRole = "developer" | "functional";
 export type PicklistType = "module" | "complexity" | "status" | "company_code" | "stream";
 export type ConsultantType = "functional" | "technical";
 export type ResourceLocation = "onsite" | "offshore";
-export type InvitationRole = "org_admin" | "project_manager" | "technical_lead" | "member" | "client";
+export type InvitationRole = "org_admin" | "project_manager" | "technical_lead" | "pmo" | "member" | "client";
 export type InvitationStatus = "pending" | "accepted" | "expired";
-export type EmailType = "invite" | "deadline_alert" | "weekly_digest";
+export type EmailType = "invite" | "deadline_alert" | "weekly_digest" | "status_change";
 export type EmailStatus = "sent" | "failed";
 export type DigestDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 

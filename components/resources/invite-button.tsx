@@ -76,6 +76,7 @@ export function InviteButton({
               <select id="role" name="role" required className={selectClass} defaultValue="member">
                 <option value="project_manager">Project manager</option>
                 <option value="technical_lead">Technical lead</option>
+                <option value="pmo">PMO</option>
                 <option value="member">Member</option>
                 <option value="client">Client</option>
               </select>

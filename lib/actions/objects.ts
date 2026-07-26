@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getViewer } from "@/lib/auth/get-viewer";
+import { notifyObjectStatusChange } from "@/lib/email/notify-status-change";
 import type { AssignedRole, ObjectRow, ObjectStatus, ObjectType } from "@/lib/types/database";
 
 const AUDITED_FIELDS: (keyof ObjectRow)[] = [
@@ -147,6 +148,9 @@ export async function updateObjectByManager(
   if (error) return { error: error.message };
 
   await recordAudit(objectId, before as ObjectRow, patch, viewer.user.id);
+  if (patch.status && patch.status !== (before as ObjectRow).status) {
+    await notifyObjectStatusChange(objectId, projectId, patch.status);
+  }
   revalidatePath(`/projects/${projectId}`);
   return { error: null };
 }
@@ -186,6 +190,13 @@ export async function memberUpdateObject(
   patch: { status?: ObjectStatus; admin_note?: string; comments?: string; comments2?: string },
 ) {
   const supabase = await createClient();
+
+  let before: Pick<ObjectRow, "status" | "project_id"> | null = null;
+  if (patch.status) {
+    const { data } = await supabase.from("objects").select("status, project_id").eq("id", objectId).maybeSingle();
+    before = data;
+  }
+
   const { error } = await supabase.rpc("member_update_object", {
     p_object_id: objectId,
     p_status: patch.status ?? null,
@@ -195,6 +206,9 @@ export async function memberUpdateObject(
   });
 
   if (error) return { error: error.message };
+  if (patch.status && before && patch.status !== before.status) {
+    await notifyObjectStatusChange(objectId, before.project_id, patch.status);
+  }
   revalidatePath("/my-work");
   return { error: null };
 }

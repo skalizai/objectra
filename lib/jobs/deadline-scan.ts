@@ -74,24 +74,29 @@ export async function runDeadlineScan(options?: { projectId?: string }): Promise
     if (atRisk.length === 0) continue;
 
     const objectIds = atRisk.map((o) => o.id);
+    // object_assignments points at resources (migration 0013), not
+    // profiles directly — only resources that have actually been invited
+    // (profile_id set) have a login to notify.
     const { data: assignments } = await supabase
       .from("object_assignments")
-      .select("object_id, profile_id")
+      .select("object_id, resource:resources(profile_id, full_name, email)")
       .in("object_id", objectIds);
 
     const { data: pmRows } = await supabase
       .from("project_members")
       .select("profile_id")
       .eq("project_id", project.id)
-      .in("role", ["project_manager", "technical_lead"])
+      .in("role", ["project_manager", "technical_lead", "pmo"])
       .eq("is_active", true);
 
     const itemsByRecipient = new Map<string, ObjectRow[]>();
-    for (const a of assignments ?? []) {
-      const list = itemsByRecipient.get(a.profile_id) ?? [];
+    for (const a of (assignments ?? []) as unknown as { object_id: string; resource: { profile_id: string | null } | null }[]) {
+      const profileId = a.resource?.profile_id;
+      if (!profileId) continue;
+      const list = itemsByRecipient.get(profileId) ?? [];
       const obj = atRisk.find((o) => o.id === a.object_id);
       if (obj) list.push(obj);
-      itemsByRecipient.set(a.profile_id, list);
+      itemsByRecipient.set(profileId, list);
     }
     for (const pm of pmRows ?? []) {
       itemsByRecipient.set(pm.profile_id, atRisk);

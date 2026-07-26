@@ -8,6 +8,7 @@ import type { ProjectMemberRole } from "@/lib/types/database";
 const ROLE_LABEL: Record<ProjectMemberRole, string> = {
   project_manager: "Project manager",
   technical_lead: "Technical lead",
+  pmo: "PMO",
   member: "Member",
   client: "Client",
 };
@@ -31,8 +32,8 @@ export function MemberManagement({ members }: { members: MemberWithMemberships[]
       <h3 className="font-display text-sm font-semibold">Member management</h3>
       <p className="mt-1 text-xs text-text-3">
         Edit a member&apos;s name or their role on each project — Project Manager and Technical Lead can
-        manage the project; Member is invite-only and can only update status/comments on their own
-        assigned objects.
+        manage the project; PMO is CC&apos;d on status emails but can&apos;t edit; Member is invite-only
+        and can only update status/comments on their own assigned objects.
       </p>
 
       <ul className="mt-4 divide-y divide-border">
