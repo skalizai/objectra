@@ -125,3 +125,16 @@ body {
   background: var(--border-2);
   border-radius: 8px;
 }
+
+/* For wide tables/boards taller than the viewport, the browser's default
+   horizontal scrollbar sits at the bottom of the content — below however
+   many rows/cards there are, forcing a scroll down the whole page just to
+   reach it. Flipping the container and un-flipping its content moves the
+   scrollbar to the top, where it's reachable without scrolling past the
+   content first. */
+.scroll-x-top {
+  transform: scaleY(-1);
+}
+.scroll-x-top > * {
+  transform: scaleY(-1);
+}

@@ -86,7 +86,7 @@ export function ObjectsRegister({
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-card border border-border">
+      <div className="scroll-x-top overflow-x-auto rounded-card border border-border">
         <table className="w-full min-w-[1420px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-left text-xs text-text-3">

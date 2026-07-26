@@ -37,7 +37,7 @@ export function PipelineBoard({
   }
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2 pt-5">
+    <div className="scroll-x-top flex gap-4 overflow-x-auto pb-2 pt-5">
       {statuses.map((column) => {
         const columnItems = items.filter((o) => o.status === column.value);
         return (
