@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Profile, Project } from "@/lib/types/database";
+import type { Project, Resource } from "@/lib/types/database";
 
 export interface ProjectWithPm extends Project {
-  pm: Pick<Profile, "id" | "full_name" | "email"> | null;
+  pm: Pick<Resource, "id" | "full_name" | "email"> | null;
   object_count: number;
 }
 
@@ -21,8 +21,8 @@ export async function listProjects(): Promise<ProjectWithPm[]> {
 
   const [{ data: pms }, { data: objectCounts }] = await Promise.all([
     pmIds.length
-      ? supabase.from("profiles").select("id, full_name, email").in("id", pmIds)
-      : Promise.resolve({ data: [] as Pick<Profile, "id" | "full_name" | "email">[] }),
+      ? supabase.from("resources").select("id, full_name, email").in("id", pmIds)
+      : Promise.resolve({ data: [] as Pick<Resource, "id" | "full_name" | "email">[] }),
     supabase.from("objects").select("project_id"),
   ]);
 

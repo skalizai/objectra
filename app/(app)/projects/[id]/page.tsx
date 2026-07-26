@@ -14,7 +14,7 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
   let pmName = "Unassigned";
   if (project.pm_id) {
     const supabase = await createClient();
-    const { data } = await supabase.from("profiles").select("full_name").eq("id", project.pm_id).maybeSingle();
+    const { data } = await supabase.from("resources").select("full_name").eq("id", project.pm_id).maybeSingle();
     pmName = data?.full_name ?? "Unassigned";
   }
 

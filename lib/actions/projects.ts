@@ -21,7 +21,10 @@ export async function createProject(
   const code = String(formData.get("code") ?? "").trim().toUpperCase();
   const startDate = String(formData.get("start_date") ?? "").trim();
   const targetGoLive = String(formData.get("target_go_live") ?? "").trim();
-  const pmId = String(formData.get("pm_id") ?? "").trim();
+  // pm_id is a resources.id now (picked from the roster, invited or not —
+  // see migration 0016), not a profiles.id. Real editing access still
+  // flows through project_members.profile_id below, resolved separately.
+  const pmResourceId = String(formData.get("pm_id") ?? "").trim();
   const companyCode = String(formData.get("company_code") ?? "").trim();
   const stream = String(formData.get("stream") ?? "").trim();
 
@@ -30,6 +33,30 @@ export async function createProject(
   }
 
   const supabase = await createClient();
+
+  let pmProfileId: string | null = viewer.user.id;
+  let pmId = pmResourceId || null;
+  if (pmResourceId) {
+    const { data: resource } = await supabase
+      .from("resources")
+      .select("profile_id")
+      .eq("id", pmResourceId)
+      .maybeSingle();
+    // Only invited resources have a login to grant project access to —
+    // an uninvited pick is still shown as the PM, just without access yet.
+    pmProfileId = resource?.profile_id ?? null;
+  } else {
+    // No PM chosen — fall back to whichever roster entry (if any)
+    // represents the creator, so "Project manager" doesn't just say
+    // Unassigned when it's obviously them.
+    const { data: selfResource } = await supabase
+      .from("resources")
+      .select("id")
+      .eq("org_id", viewer.profile.org_id)
+      .eq("profile_id", viewer.user.id)
+      .maybeSingle();
+    pmId = selfResource?.id ?? null;
+  }
 
   const { data: project, error } = await supabase
     .from("projects")
@@ -40,7 +67,7 @@ export async function createProject(
       code,
       start_date: startDate || null,
       target_go_live: targetGoLive || null,
-      pm_id: pmId || viewer.user.id,
+      pm_id: pmId,
       company_code: companyCode || null,
       stream: stream || null,
     })
@@ -51,11 +78,12 @@ export async function createProject(
     return { error: error.message };
   }
 
-  // The creator (or chosen PM) needs a project_members row to satisfy
-  // project-scoped RLS on everything else (objects, assignments, etc).
+  // The creator (or chosen PM, if already invited) needs a project_members
+  // row to satisfy project-scoped RLS on everything else (objects,
+  // assignments, etc). An uninvited PM pick simply gets one once invited.
   await supabase.from("project_members").insert({
     project_id: project.id,
-    profile_id: pmId || viewer.user.id,
+    profile_id: pmProfileId ?? viewer.user.id,
     role: "project_manager",
     allocation_pct: 0,
   });
@@ -89,6 +117,8 @@ export async function updateProject(
   const status = String(formData.get("status") ?? "active");
   const startDate = String(formData.get("start_date") ?? "").trim();
   const targetGoLive = String(formData.get("target_go_live") ?? "").trim();
+  // pm_id is a resources.id (see migration 0016) — real editing access is
+  // unaffected, it's still granted via project_members separately.
   const pmId = String(formData.get("pm_id") ?? "").trim();
   const companyCode = String(formData.get("company_code") ?? "").trim();
   const stream = String(formData.get("stream") ?? "").trim();

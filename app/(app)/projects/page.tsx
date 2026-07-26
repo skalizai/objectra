@@ -14,7 +14,7 @@ export default async function ProjectsPage() {
   if (viewer?.role === "org_admin") {
     const supabase = await createClient();
     const { data } = await supabase
-      .from("profiles")
+      .from("resources")
       .select("id, full_name")
       .eq("org_id", viewer.profile.org_id)
       .order("full_name");
