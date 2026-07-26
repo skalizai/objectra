@@ -10,8 +10,8 @@ export interface ObjectStatusEmailProps {
   projectName: string;
   status: string;
   dueDate: string | null;
-  counterpartLabel: string | null;
-  counterpartName: string | null;
+  technicalName: string | null;
+  functionalName: string | null;
   appUrl: string;
 }
 
@@ -24,8 +24,8 @@ export default function ObjectStatusEmail({
   projectName = "Acme S/4HANA Rollout",
   status = "Development in Progress",
   dueDate = null,
-  counterpartLabel = "Functional consultant",
-  counterpartName = "Priya Sharma",
+  technicalName = "Jordan Lee",
+  functionalName = "Priya Sharma",
   appUrl = "https://objectra.app",
 }: ObjectStatusEmailProps) {
   return (
@@ -44,9 +44,14 @@ export default function ObjectStatusEmail({
                 {projectName} · {status}
                 {dueDate ? ` · Due ${dueDate}` : ""}
               </Text>
-              {counterpartName && counterpartLabel && (
+              {technicalName && (
                 <Text style={{ margin: "8px 0 0", fontSize: 12, color: "#333B48" }}>
-                  {counterpartLabel}: <strong>{counterpartName}</strong>
+                  Technical consultant: <strong>{technicalName}</strong>
+                </Text>
+              )}
+              {functionalName && (
+                <Text style={{ margin: "2px 0 0", fontSize: 12, color: "#333B48" }}>
+                  Functional consultant: <strong>{functionalName}</strong>
                 </Text>
               )}
             </td>
