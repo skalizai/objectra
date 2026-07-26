@@ -1,6 +1,11 @@
 import { Section, Text } from "@react-email/components";
 import { EmailShell, emailStyles } from "./components/shell";
 
+const BRASS = "#C79A4B";
+const INK = "#0E1116";
+const TEXT_2 = "#5B6472";
+const OVERDUE = "#F0574B";
+
 export interface WeeklyDigestEmailProps {
   recipientName: string;
   projectName: string;
@@ -27,35 +32,73 @@ export default function WeeklyDigestEmail({
   appUrl = "https://objectra.app",
 }: WeeklyDigestEmailProps) {
   return (
-    <EmailShell preview={`Weekly status for ${projectName} — ${percentComplete}% complete`} heading="Weekly status digest">
+    <EmailShell
+      preview={`Weekly status for ${projectName} — ${percentComplete}% complete`}
+      heading="Weekly status digest"
+    >
       <Text style={emailStyles.text}>Hi {recipientName},</Text>
       <Text style={emailStyles.text}>
-        Here&apos;s the weekly status for <strong>{projectName}</strong>.
+        Here&apos;s this week&apos;s status summary for <strong>{projectName}</strong>.
       </Text>
 
-      <table role="presentation" style={{ width: "100%", marginTop: 8 }}>
-        <tr>
-          {[
-            { label: "Total", value: total },
-            { label: "Live", value: live },
-            { label: "In flight", value: inFlight },
-            { label: "At risk", value: atRisk },
-          ].map((kpi) => (
-            <td key={kpi.label} style={{ padding: 8, textAlign: "center" as const }}>
-              <Text style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0E1116" }}>{kpi.value}</Text>
-              <Text style={{ margin: 0, fontSize: 11, color: "#6B7482" }}>{kpi.label}</Text>
-            </td>
-          ))}
-        </tr>
-      </table>
+      <Section style={{ marginTop: 12 }}>
+        <table role="presentation" style={{ width: "100%" }}>
+          <tr>
+            <td style={{ padding: "16px 18px", background: "#F4F5F7", borderRadius: 12 }}>
+              <table role="presentation" style={{ width: "100%" }}>
+                <tr>
+                  <td>
+                    <Text style={{ margin: 0, fontSize: 28, fontWeight: 700, color: INK }}>
+                      {percentComplete}%
+                    </Text>
+                    <Text style={{ margin: 0, fontSize: 12, color: TEXT_2 }}>complete</Text>
+                  </td>
+                  <td style={{ textAlign: "right" as const, verticalAlign: "bottom" as const }}>
+                    <Text style={{ margin: 0, fontSize: 12, color: TEXT_2 }}>
+                      {live} of {total} objects live
+                    </Text>
+                  </td>
+                </tr>
+              </table>
 
-      <Text style={{ ...emailStyles.text, marginTop: 16, fontWeight: 700 }}>{percentComplete}% complete</Text>
+              <table role="presentation" style={{ width: "100%", marginTop: 10 }}>
+                <tr>
+                  <td style={{ height: 8, borderRadius: 999, background: "#E5E7EB", overflow: "hidden" as const }}>
+                    <table role="presentation" style={{ width: `${percentComplete}%`, height: 8 }}>
+                      <tr>
+                        <td style={{ height: 8, borderRadius: 999, background: BRASS }} />
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <table role="presentation" style={{ width: "100%", marginTop: 16 }}>
+                <tr>
+                  {[
+                    { label: "Live", value: live, color: "#35C08A" },
+                    { label: "In flight", value: inFlight, color: INK },
+                    { label: "At risk", value: atRisk, color: atRisk > 0 ? OVERDUE : INK },
+                  ].map((kpi) => (
+                    <td key={kpi.label} style={{ textAlign: "center" as const }}>
+                      <Text style={{ margin: 0, fontSize: 18, fontWeight: 700, color: kpi.color }}>
+                        {kpi.value}
+                      </Text>
+                      <Text style={{ margin: 0, fontSize: 11, color: TEXT_2 }}>{kpi.label}</Text>
+                    </td>
+                  ))}
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </Section>
 
       {movedThisWeek.length > 0 && (
-        <Section style={{ marginTop: 12 }}>
-          <Text style={{ ...emailStyles.text, fontWeight: 600, marginBottom: 4 }}>What moved this week</Text>
+        <Section style={{ marginTop: 18 }}>
+          <Text style={{ ...emailStyles.text, fontWeight: 700, marginBottom: 6 }}>What moved this week</Text>
           {movedThisWeek.map((line) => (
-            <Text key={line} style={{ ...emailStyles.text, margin: "2px 0" }}>
+            <Text key={line} style={{ ...emailStyles.text, margin: "3px 0", color: TEXT_2 }}>
               · {line}
             </Text>
           ))}
@@ -63,13 +106,13 @@ export default function WeeklyDigestEmail({
       )}
 
       {overdue.length > 0 && (
-        <Section style={{ marginTop: 12 }}>
-          <Text style={{ ...emailStyles.text, fontWeight: 600, marginBottom: 4, color: "#F0574B" }}>
-            What&apos;s overdue
+        <Section style={{ marginTop: 18 }}>
+          <Text style={{ ...emailStyles.text, fontWeight: 700, marginBottom: 6, color: OVERDUE }}>
+            Needs attention
           </Text>
           {overdue.map((item) => (
-            <Text key={item.title} style={{ ...emailStyles.text, margin: "2px 0" }}>
-              · {item.title} (was due {item.dueDate})
+            <Text key={item.title} style={{ ...emailStyles.text, margin: "3px 0", color: TEXT_2 }}>
+              · {item.title} — due {item.dueDate}
             </Text>
           ))}
         </Section>

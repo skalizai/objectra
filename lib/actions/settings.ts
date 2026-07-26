@@ -18,6 +18,15 @@ export async function updateNotificationSettings(
 ): Promise<SimpleActionState> {
   const supabase = await createClient();
 
+  const extraDigestEmails = Array.from(
+    new Set(
+      String(formData.get("extra_digest_emails") ?? "")
+        .split(/[,\n]/)
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@")),
+    ),
+  );
+
   const { error } = await supabase
     .from("notification_settings")
     .update({
@@ -29,6 +38,7 @@ export async function updateNotificationSettings(
         pms: formData.get("recipients_pms") === "on",
         clients: formData.get("recipients_clients") === "on",
       },
+      extra_digest_emails: extraDigestEmails,
     })
     .eq("project_id", projectId);
 

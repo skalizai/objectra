@@ -242,6 +242,7 @@ export interface NotificationSettings {
   weekly_digest_enabled: boolean;
   digest_day: DigestDay;
   digest_recipients: { pms: boolean; clients: boolean };
+  extra_digest_emails: string[];
   created_at: string;
   updated_at: string;
 }

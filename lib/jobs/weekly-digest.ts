@@ -87,7 +87,7 @@ export async function runWeeklyDigest(options?: {
       AuditLogEntry & { object: { title: string; wricef_id: string | null } }
     >).map((entry) => `${entry.object.wricef_id ?? entry.object.title} moved to ${entry.new_value}`);
 
-    const { data: recipients } = await supabase
+    const { data: memberRows } = await supabase
       .from("project_members")
       .select("role, profile:profiles(full_name, email)")
       .eq("project_id", project.id)
@@ -95,12 +95,36 @@ export async function runWeeklyDigest(options?: {
       .in(
         "role",
         [
-          ...(settings.digest_recipients?.pms !== false ? ["project_manager", "technical_lead"] : []),
+          // "pms" covers everyone internal to the delivery team, not just
+          // PMs — Technical Lead, PMO, and regular Members too.
+          ...(settings.digest_recipients?.pms !== false
+            ? ["project_manager", "technical_lead", "pmo", "member"]
+            : []),
           ...(settings.digest_recipients?.clients !== false ? ["client"] : []),
         ],
       );
 
-    if (!recipients || recipients.length === 0) continue;
+    const memberRecipients = ((memberRows ?? []) as unknown as Array<{
+      profile: { full_name: string; email: string } | null;
+    }>)
+      .filter((r): r is { profile: { full_name: string; email: string } } => !!r.profile)
+      .map((r) => ({ email: r.profile.email, fullName: r.profile.full_name }));
+
+    // Admin-added addresses (Settings → Weekly digest emails) — external
+    // stakeholders with no login, so no name to greet them by.
+    const extraRecipients = ((settings.extra_digest_emails ?? []) as string[]).map((email) => ({
+      email,
+      fullName: "there",
+    }));
+
+    // Dedupe by email — someone could plausibly be both a project member
+    // and (redundantly) listed in the extra addresses.
+    const recipientsByEmail = new Map<string, { email: string; fullName: string }>();
+    for (const r of [...memberRecipients, ...extraRecipients]) {
+      if (!recipientsByEmail.has(r.email)) recipientsByEmail.set(r.email, r);
+    }
+    const allRecipients = Array.from(recipientsByEmail.values());
+    if (allRecipients.length === 0) continue;
 
     const { data: alreadySentToday } = options?.force
       ? { data: [] }
@@ -115,10 +139,8 @@ export async function runWeeklyDigest(options?: {
     const percentComplete = total === 0 ? 0 : Math.round((live / total) * 100);
     const subject = `Weekly status — ${project.name}: ${percentComplete}% complete`;
 
-    for (const recipient of recipients as unknown as Array<{
-      profile: { full_name: string; email: string };
-    }>) {
-      if (alreadySent.has(recipient.profile.email)) {
+    for (const recipient of allRecipients) {
+      if (alreadySent.has(recipient.email)) {
         result.emailsSkipped += 1;
         continue;
       }
@@ -126,10 +148,10 @@ export async function runWeeklyDigest(options?: {
       try {
         const sendResult = await getResendClient().emails.send({
           from: EMAIL_FROM,
-          to: recipient.profile.email,
+          to: recipient.email,
           subject,
           react: WeeklyDigestEmail({
-            recipientName: recipient.profile.full_name,
+            recipientName: recipient.fullName,
             projectName: project.name,
             total,
             live,
@@ -144,7 +166,7 @@ export async function runWeeklyDigest(options?: {
 
         await supabase.from("email_log").insert({
           type: "weekly_digest",
-          to_email: recipient.profile.email,
+          to_email: recipient.email,
           subject,
           project_id: project.id,
           status: sendResult.error ? "failed" : "sent",
@@ -158,7 +180,7 @@ export async function runWeeklyDigest(options?: {
         result.emailsFailed += 1;
         await supabase.from("email_log").insert({
           type: "weekly_digest",
-          to_email: recipient.profile.email,
+          to_email: recipient.email,
           subject,
           project_id: project.id,
           status: "failed",

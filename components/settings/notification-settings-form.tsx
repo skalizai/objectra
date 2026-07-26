@@ -86,12 +86,28 @@ export function NotificationSettingsForm({
           <Label>Recipients</Label>
           <label className="flex items-center gap-2 text-sm text-text-2">
             <input type="checkbox" name="recipients_pms" defaultChecked={settings.digest_recipients?.pms ?? true} />
-            Project managers
+            Team (Project Manager, Technical Lead, PMO, Members)
           </label>
           <label className="flex items-center gap-2 text-sm text-text-2">
             <input type="checkbox" name="recipients_clients" defaultChecked={settings.digest_recipients?.clients ?? true} />
             Clients
           </label>
+        </div>
+
+        <div>
+          <Label htmlFor="extra_digest_emails">Weekly digest emails</Label>
+          <textarea
+            id="extra_digest_emails"
+            name="extra_digest_emails"
+            rows={2}
+            defaultValue={(settings.extra_digest_emails ?? []).join(", ")}
+            placeholder="jane@client.com, john@partner.com"
+            className="w-full resize-none rounded-control border border-border-2 bg-surface-2 px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-brass focus-visible:outline-none"
+          />
+          <p className="mt-1 text-xs text-text-3">
+            Extra addresses to include on the weekly digest — for people without an Objectra login.
+            Comma or newline separated.
+          </p>
         </div>
 
         <div className="flex items-center gap-3 pt-1">

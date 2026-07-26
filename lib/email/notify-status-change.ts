@@ -53,6 +53,13 @@ const STATUS_TRIGGERS: StatusTrigger[] = [
       "Testing for the object you developed has started in UAT. Please be available in case any changes come up that need to be reverted or fixed based on testing feedback.",
   },
   {
+    status: "Functional Testing in Quality",
+    recipientRoles: ["functional", "developer"],
+    heading: "Now in Functional Testing in Quality",
+    message:
+      "This object has moved to Functional Testing in Quality. Functional consultant — please begin testing. Technical consultant — you may be needed to support any corrections that come up during testing.",
+  },
+  {
     status: "Live",
     recipientRoles: ["developer", "functional"],
     heading: "Now live in production",
