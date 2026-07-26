@@ -1,11 +1,54 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient, EMAIL_FROM } from "@/lib/email/resend";
 import { isDoneStatus, isOverdue } from "@/lib/object-meta";
-import WeeklyDigestEmail from "@/emails/weekly-digest-email";
-import type { AuditLogEntry, DigestDay, ObjectRow, Picklist, Project } from "@/lib/types/database";
+import WeeklyDigestEmail, { type DigestObjectItem } from "@/emails/weekly-digest-email";
+import type { DigestDay, ObjectRow, Picklist, Project } from "@/lib/types/database";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 const DAY_KEYS: DigestDay[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/** Functional/technical consultant names for a batch of objects, so the
+ * digest can show who's on each one — management-readable, not just a
+ * WRICEF ID nobody outside the delivery team recognizes. */
+async function getAssigneeNames(
+  supabase: ReturnType<typeof createAdminClient>,
+  objectIds: string[],
+): Promise<Map<string, { functional?: string; technical?: string }>> {
+  const map = new Map<string, { functional?: string; technical?: string }>();
+  if (objectIds.length === 0) return map;
+
+  const { data } = await supabase
+    .from("object_assignments")
+    .select("object_id, assigned_role, resource:resources(full_name)")
+    .in("object_id", objectIds);
+
+  for (const row of (data ?? []) as unknown as {
+    object_id: string;
+    assigned_role: string;
+    resource: { full_name: string } | null;
+  }[]) {
+    const entry = map.get(row.object_id) ?? {};
+    if (row.assigned_role === "functional") entry.functional = row.resource?.full_name;
+    if (row.assigned_role === "developer") entry.technical = row.resource?.full_name;
+    map.set(row.object_id, entry);
+  }
+  return map;
+}
+
+function toDigestItem(
+  o: ObjectRow,
+  assigneeMap: Map<string, { functional?: string; technical?: string }>,
+): DigestObjectItem {
+  const a = assigneeMap.get(o.id);
+  return {
+    title: o.title,
+    module: o.module,
+    status: o.status,
+    functionalName: a?.functional ?? null,
+    technicalName: a?.technical ?? null,
+    dueDate: null,
+  };
+}
 
 function startOfTodayIso() {
   const d = new Date();
@@ -73,19 +116,35 @@ export async function runWeeklyDigest(options?: {
 
     const { data: recentAudit } = await supabase
       .from("audit_log")
-      .select("*, object:objects(title, wricef_id)")
+      .select("object_id, changed_at")
       .eq("field", "status")
       .gte("changed_at", sevenDaysAgoIso())
       .in(
         "object_id",
         objectList.map((o) => o.id),
       )
-      .order("changed_at", { ascending: false })
-      .limit(10);
+      .order("changed_at", { ascending: false });
 
-    const movedThisWeek = ((recentAudit ?? []) as unknown as Array<
-      AuditLogEntry & { object: { title: string; wricef_id: string | null } }
-    >).map((entry) => `${entry.object.wricef_id ?? entry.object.title} moved to ${entry.new_value}`);
+    // Dedupe to one entry per object (its current status), most recently
+    // changed first — an object that moved twice this week only needs to
+    // show up once, with where it actually stands now.
+    const objectById = new Map(objectList.map((o) => [o.id, o]));
+    const seenMoved = new Set<string>();
+    const movedObjects: ObjectRow[] = [];
+    for (const row of (recentAudit ?? []) as { object_id: string }[]) {
+      if (seenMoved.has(row.object_id)) continue;
+      seenMoved.add(row.object_id);
+      const obj = objectById.get(row.object_id);
+      if (obj) movedObjects.push(obj);
+      if (movedObjects.length >= 10) break;
+    }
+
+    const assigneeMap = await getAssigneeNames(
+      supabase,
+      Array.from(new Set([...movedObjects.map((o) => o.id), ...atRisk.slice(0, 10).map((o) => o.id)])),
+    );
+
+    const movedThisWeek = movedObjects.map((o) => toDigestItem(o, assigneeMap));
 
     const { data: memberRows } = await supabase
       .from("project_members")
@@ -159,7 +218,7 @@ export async function runWeeklyDigest(options?: {
             atRisk: atRisk.length,
             percentComplete,
             movedThisWeek,
-            overdue: atRisk.slice(0, 10).map((o) => ({ title: o.title, dueDate: o.due_date! })),
+            overdue: atRisk.slice(0, 10).map((o) => ({ ...toDigestItem(o, assigneeMap), dueDate: o.due_date })),
             appUrl: APP_URL,
           }),
         });

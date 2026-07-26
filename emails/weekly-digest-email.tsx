@@ -6,6 +6,15 @@ const INK = "#0E1116";
 const TEXT_2 = "#5B6472";
 const OVERDUE = "#F0574B";
 
+export interface DigestObjectItem {
+  title: string;
+  module: string | null;
+  status: string;
+  functionalName: string | null;
+  technicalName: string | null;
+  dueDate?: string | null;
+}
+
 export interface WeeklyDigestEmailProps {
   recipientName: string;
   projectName: string;
@@ -14,9 +23,42 @@ export interface WeeklyDigestEmailProps {
   inFlight: number;
   atRisk: number;
   percentComplete: number;
-  movedThisWeek: string[];
-  overdue: { title: string; dueDate: string }[];
+  movedThisWeek: DigestObjectItem[];
+  overdue: DigestObjectItem[];
   appUrl: string;
+}
+
+function DigestItemCard({ item }: { item: DigestObjectItem }) {
+  return (
+    <table role="presentation" style={{ width: "100%", marginBottom: 8 }}>
+      <tr>
+        <td style={{ padding: "10px 12px", background: "#F4F5F7", borderRadius: 8 }}>
+          <Text
+            style={{
+              margin: 0,
+              fontSize: 10,
+              fontWeight: 700,
+              color: BRASS,
+              textTransform: "uppercase" as const,
+              letterSpacing: 0.5,
+            }}
+          >
+            {item.module || "No module"}
+          </Text>
+          <Text style={{ margin: "2px 0 0", fontSize: 13, fontWeight: 700, color: INK }}>{item.title}</Text>
+          <Text style={{ margin: "3px 0 0", fontSize: 12, color: TEXT_2 }}>
+            {item.status}
+            {item.dueDate ? ` · Due ${item.dueDate}` : ""}
+          </Text>
+          <Text style={{ margin: "3px 0 0", fontSize: 11, color: "#333B48" }}>
+            Functional: <strong>{item.functionalName ?? "Unassigned"}</strong>
+            {"   ·   "}
+            Technical: <strong>{item.technicalName ?? "Unassigned"}</strong>
+          </Text>
+        </td>
+      </tr>
+    </table>
+  );
 }
 
 export default function WeeklyDigestEmail({
@@ -27,8 +69,25 @@ export default function WeeklyDigestEmail({
   inFlight = 52,
   atRisk = 12,
   percentComplete = 50,
-  movedThisWeek = ["WF-0142 moved to Testing in Q", "RP-0087 went live"],
-  overdue = [{ title: "Regional sales variance", dueDate: "2026-07-18" }],
+  movedThisWeek = [
+    {
+      title: "Vendor onboarding approval",
+      module: "MM",
+      status: "Testing in QA",
+      functionalName: "Priya Sharma",
+      technicalName: "Jordan Lee",
+    },
+  ],
+  overdue = [
+    {
+      title: "Regional sales variance",
+      module: "SD",
+      status: "Development in Progress",
+      functionalName: "Priya Sharma",
+      technicalName: "Jordan Lee",
+      dueDate: "2026-07-18",
+    },
+  ],
   appUrl = "https://objectra.app",
 }: WeeklyDigestEmailProps) {
   return (
@@ -96,24 +155,20 @@ export default function WeeklyDigestEmail({
 
       {movedThisWeek.length > 0 && (
         <Section style={{ marginTop: 18 }}>
-          <Text style={{ ...emailStyles.text, fontWeight: 700, marginBottom: 6 }}>What moved this week</Text>
-          {movedThisWeek.map((line) => (
-            <Text key={line} style={{ ...emailStyles.text, margin: "3px 0", color: TEXT_2 }}>
-              · {line}
-            </Text>
+          <Text style={{ ...emailStyles.text, fontWeight: 700, marginBottom: 8 }}>What moved this week</Text>
+          {movedThisWeek.map((item) => (
+            <DigestItemCard key={item.title} item={item} />
           ))}
         </Section>
       )}
 
       {overdue.length > 0 && (
         <Section style={{ marginTop: 18 }}>
-          <Text style={{ ...emailStyles.text, fontWeight: 700, marginBottom: 6, color: OVERDUE }}>
+          <Text style={{ ...emailStyles.text, fontWeight: 700, marginBottom: 8, color: OVERDUE }}>
             Needs attention
           </Text>
           {overdue.map((item) => (
-            <Text key={item.title} style={{ ...emailStyles.text, margin: "3px 0", color: TEXT_2 }}>
-              · {item.title} — due {item.dueDate}
-            </Text>
+            <DigestItemCard key={item.title} item={item} />
           ))}
         </Section>
       )}
