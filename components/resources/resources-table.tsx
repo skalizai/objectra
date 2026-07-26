@@ -4,14 +4,11 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { IconAlertTriangle, IconCircleCheck } from "@tabler/icons-react";
 import { InviteButton } from "@/components/resources/invite-button";
+import { EditResourceButton } from "@/components/resources/edit-resource-button";
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button";
-import { useModules } from "@/components/providers/picklist-provider";
-import { updateResource, updateResourceProjectAllocation } from "@/lib/actions/resources";
 import type { ResourceWithAllocation } from "@/lib/data/resources";
-import type { ConsultantType, ResourceLocation } from "@/lib/types/database";
 
 const LOCATION_LABEL: Record<string, string> = { onsite: "Onsite", offshore: "Offshore" };
-const ALLOCATIONS = [25, 50, 75, 100];
 
 type TypeTab = "all" | "functional" | "technical";
 const TYPE_TABS: { key: TypeTab; label: string }[] = [
@@ -19,11 +16,6 @@ const TYPE_TABS: { key: TypeTab; label: string }[] = [
   { key: "functional", label: "Functional" },
   { key: "technical", label: "Technical" },
 ];
-
-const selectClass =
-  "h-8 rounded-[7px] border border-border-2 bg-surface-2 px-2 text-xs text-text-2 focus:border-brass focus-visible:outline-none";
-const inputClass =
-  "h-8 rounded-[7px] border border-border-2 bg-transparent px-2 text-sm text-text focus:border-brass focus-visible:outline-none";
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
@@ -38,45 +30,22 @@ export function ResourcesTable({
   canInvite: boolean;
   projectOptions: { id: string; name: string }[];
 }) {
-  const modules = useModules();
   const [tab, setTab] = useState<TypeTab>("all");
   const [rows, setRows] = useState(resources);
-  // `resources` is copied into local state so inline edits/deletes can
-  // update optimistically without a full server round trip — but that
-  // means this must resync whenever the parent re-renders with a
-  // genuinely new list (e.g. a resource was just added elsewhere).
-  // Adjusted during render (React's documented pattern for this) rather
-  // than in an effect, which would cause an extra cascading render.
+  // `resources` is copied into local state so an optimistic delete can
+  // remove a row immediately — but that means this must resync whenever
+  // the parent re-renders with a genuinely new list (e.g. an edit saved
+  // elsewhere). Adjusted during render (React's documented pattern for
+  // this) rather than in an effect, which would cause an extra cascading
+  // render.
   const [prevResources, setPrevResources] = useState(resources);
   if (resources !== prevResources) {
     setPrevResources(resources);
     setRows(resources);
   }
 
-  function patchRow(id: string, fields: Partial<ResourceWithAllocation>) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...fields } : r)));
-  }
-
   function removeRow(id: string) {
     setRows((prev) => prev.filter((r) => r.id !== id));
-  }
-
-  const [rowErrors, setRowErrors] = useState<Record<string, string | null>>({});
-
-  /** Returns false if the email couldn't be saved, so the caller can reset
-   * the (uncontrolled) input back to the last good value. */
-  async function commitEmail(resource: ResourceWithAllocation, rawValue: string): Promise<boolean> {
-    const email = rawValue.trim().toLowerCase();
-    if (!email || email === resource.email) return true;
-    patchRow(resource.id, { email });
-    const result = await updateResource(resource.id, { email });
-    if (result?.error) {
-      patchRow(resource.id, { email: resource.email });
-      setRowErrors((prev) => ({ ...prev, [resource.id]: result.error }));
-      return false;
-    }
-    setRowErrors((prev) => ({ ...prev, [resource.id]: null }));
-    return true;
   }
 
   const counts = {
@@ -125,7 +94,7 @@ export function ResourcesTable({
               <th className="px-4 py-2.5 font-medium">Allocation</th>
               <th className="px-4 py-2.5 font-medium">Location</th>
               <th className="px-4 py-2.5 font-medium">Access</th>
-              {canInvite && <th className="px-4 py-2.5 font-medium"></th>}
+              {canInvite && <th className="px-4 py-2.5 font-medium">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -135,7 +104,7 @@ export function ResourcesTable({
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: Math.min(i * 0.03, 0.4) }}
-                className="border-b border-border last:border-0 hover:bg-surface-2 align-top"
+                className="border-b border-border last:border-0 hover:bg-surface-2"
               >
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2.5">
@@ -145,130 +114,31 @@ export function ResourcesTable({
                     >
                       {initials(resource.full_name) || "?"}
                     </span>
-                    {canInvite ? (
-                      <div className="min-w-0 flex-1">
-                        <input
-                          defaultValue={resource.full_name}
-                          className={`${inputClass} w-full`}
-                          onBlur={(e) => {
-                            const full_name = e.target.value.trim();
-                            if (!full_name || full_name === resource.full_name) {
-                              e.target.value = resource.full_name;
-                              return;
-                            }
-                            patchRow(resource.id, { full_name });
-                            void updateResource(resource.id, { full_name });
-                          }}
-                        />
-                        <input
-                          defaultValue={resource.email}
-                          className={`${inputClass} mt-1 w-full text-xs`}
-                          onBlur={async (e) => {
-                            const ok = await commitEmail(resource, e.target.value);
-                            if (!ok) e.target.value = resource.email;
-                          }}
-                        />
-                        {rowErrors[resource.id] && (
-                          <p className="mt-0.5 text-[10px]" style={{ color: "var(--status-overdue)" }}>
-                            {rowErrors[resource.id]}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="min-w-0">
-                        <div className="truncate text-text">{resource.full_name}</div>
-                        <div className="truncate text-xs text-text-3">{resource.email}</div>
-                      </div>
-                    )}
+                    <div className="min-w-0">
+                      <div className="truncate text-text">{resource.full_name}</div>
+                      <div className="truncate text-xs text-text-3">{resource.email}</div>
+                    </div>
                   </div>
                 </td>
 
-                <td className="px-4 py-2.5">
-                  {canInvite ? (
-                    <select
-                      className={selectClass}
-                      defaultValue={resource.consultant_type ?? ""}
-                      onChange={(e) => {
-                        const consultant_type = (e.target.value || null) as ConsultantType | null;
-                        patchRow(resource.id, { consultant_type });
-                        void updateResource(resource.id, { consultant_type });
-                      }}
-                    >
-                      <option value="">—</option>
-                      <option value="functional">Functional</option>
-                      <option value="technical">Technical</option>
-                    </select>
-                  ) : (
-                    <span className="text-text-2">
-                      {resource.consultant_type === "functional"
-                        ? "Functional"
-                        : resource.consultant_type === "technical"
-                          ? "Technical"
-                          : "—"}
-                    </span>
-                  )}
+                <td className="px-4 py-2.5 text-text-2">
+                  {resource.consultant_type === "functional"
+                    ? "Functional"
+                    : resource.consultant_type === "technical"
+                      ? "Technical"
+                      : "—"}
                 </td>
 
-                <td className="px-4 py-2.5">
-                  {canInvite ? (
-                    <input
-                      defaultValue={resource.role_title ?? ""}
-                      placeholder="Role"
-                      className={`${inputClass} w-32`}
-                      onBlur={(e) => {
-                        const role_title = e.target.value || null;
-                        if (role_title === resource.role_title) return;
-                        patchRow(resource.id, { role_title });
-                        void updateResource(resource.id, { role_title });
-                      }}
-                    />
-                  ) : (
-                    <span className="text-text-2">{resource.role_title || "—"}</span>
-                  )}
-                </td>
+                <td className="px-4 py-2.5 text-text-2">{resource.role_title || "—"}</td>
 
-                <td className="px-4 py-2.5">
-                  {canInvite ? (
-                    <select
-                      className={selectClass}
-                      defaultValue={resource.primary_module ?? ""}
-                      onChange={(e) => {
-                        const primary_module = e.target.value || null;
-                        patchRow(resource.id, { primary_module });
-                        void updateResource(resource.id, { primary_module });
-                      }}
-                    >
-                      <option value="">—</option>
-                      {modules.map((m) => (
-                        <option key={m.id} value={m.value}>{m.value}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="text-text-2">{resource.primary_module || "—"}</span>
-                  )}
-                </td>
+                <td className="px-4 py-2.5 text-text-2">{resource.primary_module || "—"}</td>
 
                 <td className="px-4 py-2.5">
                   {resource.allocations.length > 0 ? (
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {resource.allocations.map((a) => (
-                        <div key={a.membership_id} className="flex items-center gap-1.5">
-                          <span className="text-xs text-text-3">{a.project_name}</span>
-                          {canInvite ? (
-                            <select
-                              className={selectClass}
-                              defaultValue={a.allocation_pct}
-                              onChange={(e) => {
-                                void updateResourceProjectAllocation(a.membership_id, Number(e.target.value));
-                              }}
-                            >
-                              {ALLOCATIONS.map((pct) => (
-                                <option key={pct} value={pct}>{pct}%</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="font-mono text-xs text-text-2">{a.allocation_pct}%</span>
-                          )}
+                        <div key={a.membership_id} className="text-xs text-text-2">
+                          {a.project_name}: <span className="font-mono">{a.allocation_pct}%</span>
                         </div>
                       ))}
                       {resource.overAllocated && (
@@ -278,44 +148,12 @@ export function ResourcesTable({
                         </span>
                       )}
                     </div>
-                  ) : canInvite ? (
-                    <select
-                      className={selectClass}
-                      defaultValue={resource.allocation_pct ?? 50}
-                      onChange={(e) => {
-                        const allocation_pct = Number(e.target.value);
-                        patchRow(resource.id, { allocation_pct });
-                        void updateResource(resource.id, { allocation_pct });
-                      }}
-                    >
-                      {ALLOCATIONS.map((pct) => (
-                        <option key={pct} value={pct}>{pct}% planned</option>
-                      ))}
-                    </select>
                   ) : (
                     <span className="font-mono text-text-3">{resource.allocation_pct ?? 50}% planned</span>
                   )}
                 </td>
 
-                <td className="px-4 py-2.5">
-                  {canInvite ? (
-                    <select
-                      className={selectClass}
-                      defaultValue={resource.location ?? ""}
-                      onChange={(e) => {
-                        const location = (e.target.value || null) as ResourceLocation | null;
-                        patchRow(resource.id, { location });
-                        void updateResource(resource.id, { location });
-                      }}
-                    >
-                      <option value="">—</option>
-                      <option value="onsite">Onsite</option>
-                      <option value="offshore">Offshore</option>
-                    </select>
-                  ) : (
-                    <span className="text-text-2">{LOCATION_LABEL[resource.location ?? ""] ?? "—"}</span>
-                  )}
-                </td>
+                <td className="px-4 py-2.5 text-text-2">{LOCATION_LABEL[resource.location ?? ""] ?? "—"}</td>
 
                 <td className="px-4 py-2.5">
                   {resource.invite_status === "invited" ? (
@@ -337,11 +175,14 @@ export function ResourcesTable({
 
                 {canInvite && (
                   <td className="px-4 py-2.5">
-                    <DeleteResourceButton
-                      resourceId={resource.id}
-                      resourceName={resource.full_name}
-                      onDeleted={() => removeRow(resource.id)}
-                    />
+                    <div className="flex items-center gap-3">
+                      <EditResourceButton resource={resource} />
+                      <DeleteResourceButton
+                        resourceId={resource.id}
+                        resourceName={resource.full_name}
+                        onDeleted={() => removeRow(resource.id)}
+                      />
+                    </div>
                   </td>
                 )}
               </motion.tr>

@@ -16,8 +16,9 @@ export default async function ResourcesPage() {
     listProjects(),
   ]);
 
-  const canManage =
-    viewer.role === "org_admin" || viewer.role === "project_manager" || viewer.role === "technical_lead";
+  // Only org_admin can edit/invite/delete resources — PMs and technical
+  // leads used to be able to as well, now roster changes are admin-only.
+  const canManage = viewer.role === "org_admin";
   const overAllocatedCount = resources.filter((r) => r.overAllocated).length;
 
   return (

@@ -42,10 +42,7 @@ export async function addResource(
   });
 
   if (error) {
-    return {
-      error: error.code === "23505" ? "A resource with this email already exists." : error.message,
-      success: false,
-    };
+    return { error: error.message, success: false };
   }
 
   revalidatePath("/resources");
@@ -89,28 +86,6 @@ export async function updateResource(resourceId: string, fields: UpdateResourceF
 
   const supabase = await createClient();
   const { error } = await supabase.from("resources").update(update).eq("id", resourceId);
-  if (error) {
-    return { error: error.code === "23505" ? "A resource with this email already exists." : error.message };
-  }
-
-  revalidatePath("/resources");
-  return { error: null };
-}
-
-/** Edits the allocation % on one of a resource's actual project
- * memberships (once they're invited, allocation lives per-project). */
-export async function updateResourceProjectAllocation(projectMemberId: string, allocationPct: number) {
-  const viewer = await getViewer();
-  if (!viewer) return { error: "Not signed in." };
-  if (!ALLOWED_ALLOCATIONS.includes(allocationPct)) {
-    return { error: "Allocation must be 25, 50, 75, or 100%." };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("project_members")
-    .update({ allocation_pct: allocationPct })
-    .eq("id", projectMemberId);
   if (error) return { error: error.message };
 
   revalidatePath("/resources");
@@ -122,8 +97,8 @@ export interface DeleteResourceState {
 }
 
 /** Removes one resource from the roster — RLS (resources_write) scopes
- * this to org_admin/PM/technical_lead already; only the targeted row is
- * touched, every other resource is untouched. Cascades to that resource's
+ * this to org_admin only; only the targeted row is touched, every other
+ * resource is untouched. Cascades to that resource's
  * own object_assignments (so they stop showing as a consultant anywhere)
  * but leaves their profile/login and project_members untouched — deleting
  * a roster entry doesn't revoke access, it just stops tracking them here. */
