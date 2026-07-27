@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient, EMAIL_FROM } from "@/lib/email/resend";
-import { isDoneStatus } from "@/lib/object-meta";
+import { DEVELOPMENT_STATUS } from "@/lib/object-meta";
 import DeadlineAlertEmail from "@/emails/deadline-alert-email";
-import type { ObjectRow, Picklist, Project } from "@/lib/types/database";
+import type { ObjectRow, Project } from "@/lib/types/database";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
@@ -40,15 +40,6 @@ export async function runDeadlineScan(options?: { projectId?: string }): Promise
   if (options?.projectId) projectQuery = projectQuery.eq("id", options.projectId);
   const { data: projects } = await projectQuery;
 
-  const statusCache = new Map<string, Picklist[]>();
-  async function getDoneStatuses(orgId: string) {
-    if (!statusCache.has(orgId)) {
-      const { data } = await supabase.from("picklists").select("*").eq("org_id", orgId).eq("type", "status");
-      statusCache.set(orgId, (data ?? []) as Picklist[]);
-    }
-    return statusCache.get(orgId)!;
-  }
-
   for (const project of (projects ?? []) as Project[]) {
     const { data: settings } = await supabase
       .from("notification_settings")
@@ -59,15 +50,16 @@ export async function runDeadlineScan(options?: { projectId?: string }): Promise
     if (!settings || !settings.deadline_alerts_enabled) continue;
     result.projectsScanned += 1;
 
-    const statuses = await getDoneStatuses(project.org_id);
     const { data: objects } = await supabase
       .from("objects")
       .select("*")
       .eq("project_id", project.id)
       .not("due_date", "is", null);
 
+    // A due date only marks an object "at risk" while it's actively in
+    // Development in Progress — see lib/object-meta.ts.
     const atRisk = ((objects ?? []) as ObjectRow[]).filter((o) => {
-      if (isDoneStatus(o.status, statuses)) return false;
+      if (o.status !== DEVELOPMENT_STATUS) return false;
       const remaining = daysRemaining(o.due_date!);
       return remaining < 0 || remaining <= settings.deadline_lead_days;
     });

@@ -14,7 +14,7 @@ export function StatusPill({
   className?: string;
 }) {
   const meta = useStatusMeta(status);
-  const overdue = isOverdue(dueDate, meta.isDone);
+  const overdue = isOverdue(dueDate, status);
   const label = overdue ? "Overdue" : meta.label;
   const colorVar = overdue ? "var(--status-overdue)" : meta.colorVar;
 

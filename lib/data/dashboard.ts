@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getPicklists } from "@/lib/data/picklists";
-import { isDoneStatus, isOverdue } from "@/lib/object-meta";
+import { isDoneStatus, isOverdue, DEVELOPMENT_STATUS } from "@/lib/object-meta";
 import type { ObjectRow, ObjectStatus, Project } from "@/lib/types/database";
 
 export interface DashboardData {
@@ -13,7 +13,7 @@ export interface DashboardData {
   };
   statusDistribution: { status: ObjectStatus; count: number }[];
   byModule: { module: string; count: number }[];
-  waveProgress: { wave: string; total: number; live: number }[];
+  projectProgress: { projectId: string; name: string; code: string; total: number; live: number; atRisk: number }[];
   deadlineMonitor: (ObjectRow & { project_name: string })[];
 }
 
@@ -44,27 +44,31 @@ export async function getDashboardData(orgId: string): Promise<DashboardData> {
   let atRisk = 0;
   const statusCounts = new Map<ObjectStatus, number>();
   const moduleCounts = new Map<string, number>();
-  const waveCounts = new Map<string, { total: number; live: number }>();
+  const projectCounts = new Map<string, { total: number; live: number; atRisk: number }>();
 
   for (const obj of objectList) {
     const done = isDoneStatus(obj.status, statuses);
+    const overdue = isOverdue(obj.due_date, obj.status);
     if (done) live += 1;
-    if (isOverdue(obj.due_date, done)) atRisk += 1;
+    if (overdue) atRisk += 1;
 
     statusCounts.set(obj.status, (statusCounts.get(obj.status) ?? 0) + 1);
 
     const moduleKey = obj.module?.trim() || "Unassigned";
     moduleCounts.set(moduleKey, (moduleCounts.get(moduleKey) ?? 0) + 1);
 
-    const waveKey = obj.wave?.trim() || "Unassigned";
-    const wave = waveCounts.get(waveKey) ?? { total: 0, live: 0 };
-    wave.total += 1;
-    if (done) wave.live += 1;
-    waveCounts.set(waveKey, wave);
+    const p = projectCounts.get(obj.project_id) ?? { total: 0, live: 0, atRisk: 0 };
+    p.total += 1;
+    if (done) p.live += 1;
+    if (overdue) p.atRisk += 1;
+    projectCounts.set(obj.project_id, p);
   }
 
+  // Objects actively in development, past due — a due date only marks an
+  // object "at risk" while it's in Development in Progress (see
+  // lib/object-meta.ts); once it moves on, that deadline no longer applies.
   const deadlineMonitor = objectList
-    .filter((o) => !isDoneStatus(o.status, statuses) && o.due_date)
+    .filter((o) => o.status === DEVELOPMENT_STATUS && o.due_date)
     .slice(0, 8)
     .map((o) => ({ ...o, project_name: projectNameById.get(o.project_id) ?? "—" }));
 
@@ -84,9 +88,13 @@ export async function getDashboardData(orgId: string): Promise<DashboardData> {
       .map(([module, count]) => ({ module, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8),
-    waveProgress: Array.from(waveCounts.entries())
-      .map(([wave, v]) => ({ wave, ...v }))
-      .sort((a, b) => a.wave.localeCompare(b.wave)),
+    projectProgress: projectList
+      .map((p) => {
+        const counts = projectCounts.get(p.id) ?? { total: 0, live: 0, atRisk: 0 };
+        return { projectId: p.id, name: p.name, code: p.code, ...counts };
+      })
+      .filter((p) => p.total > 0)
+      .sort((a, b) => b.total - a.total),
     deadlineMonitor,
   };
 }

@@ -5,7 +5,7 @@ import { getViewer } from "@/lib/auth/get-viewer";
 import { KpiRow } from "@/components/dashboard/kpi-row";
 import { StatusDonut } from "@/components/dashboard/status-donut";
 import { ModuleBar } from "@/components/dashboard/module-bar";
-import { WaveProgress } from "@/components/dashboard/wave-progress";
+import { ProjectProgress } from "@/components/dashboard/project-progress";
 import { DeadlineMonitor } from "@/components/dashboard/deadline-monitor";
 import { Button } from "@/components/ui/button";
 
@@ -47,7 +47,7 @@ export default async function DashboardPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <StatusDonut data={data.statusDistribution} />
         <ModuleBar data={data.byModule} />
-        <WaveProgress data={data.waveProgress} />
+        <ProjectProgress data={data.projectProgress} />
         <DeadlineMonitor data={data.deadlineMonitor} />
       </div>
     </div>

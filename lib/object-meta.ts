@@ -20,8 +20,15 @@ export function isDoneStatus(status: string, statuses: Pick<Picklist, "value" | 
   return statuses.find((s) => s.value === status)?.is_done ?? false;
 }
 
-export function isOverdue(dueDate: string | null, isDone: boolean): boolean {
-  if (!dueDate || isDone) return false;
+/** The due date on an object is a development deadline — it only counts
+ * as "at risk" while the object is actively in this status. Once it moves
+ * anywhere else (development finished and it progressed, or it hasn't
+ * started yet), that due date stops being a live concern. Matches the
+ * literal Settings → Object statuses value. */
+export const DEVELOPMENT_STATUS = "Development in Progress";
+
+export function isOverdue(dueDate: string | null, status: string): boolean {
+  if (!dueDate || status !== DEVELOPMENT_STATUS) return false;
   return new Date(dueDate).getTime() < Date.now();
 }
 

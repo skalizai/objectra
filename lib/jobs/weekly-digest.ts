@@ -111,7 +111,7 @@ export async function runWeeklyDigest(options?: {
     const objectList = (objects ?? []) as ObjectRow[];
 
     const live = objectList.filter((o) => isDoneStatus(o.status, statuses)).length;
-    const atRisk = objectList.filter((o) => isOverdue(o.due_date, isDoneStatus(o.status, statuses)));
+    const atRisk = objectList.filter((o) => isOverdue(o.due_date, o.status));
     const total = objectList.length;
 
     const { data: recentAudit } = await supabase

@@ -3,18 +3,18 @@
 import { motion } from "framer-motion";
 import { differenceInCalendarDays } from "date-fns";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { useStatuses } from "@/components/providers/picklist-provider";
-import { isDoneStatus } from "@/lib/object-meta";
+import { DEVELOPMENT_STATUS } from "@/lib/object-meta";
 import type { ObjectRow } from "@/lib/types/database";
 
 export function DeadlineTiles({ objects }: { objects: Pick<ObjectRow, "status" | "due_date">[] }) {
-  const statuses = useStatuses();
   let overdue = 0;
   let dueThisWeek = 0;
   let dueLater = 0;
 
+  // These due dates only count while an object is actively in
+  // Development in Progress — see lib/object-meta.ts.
   for (const obj of objects) {
-    if (isDoneStatus(obj.status, statuses) || !obj.due_date) continue;
+    if (obj.status !== DEVELOPMENT_STATUS || !obj.due_date) continue;
     const days = differenceInCalendarDays(new Date(obj.due_date), new Date());
     if (days < 0) overdue += 1;
     else if (days <= 7) dueThisWeek += 1;
