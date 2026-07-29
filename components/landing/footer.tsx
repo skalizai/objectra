@@ -16,6 +16,9 @@ export function LandingFooter() {
           <a href="#platform" className="transition-colors hover:text-text-2">
             Platform
           </a>
+          <a href="#architecture" className="transition-colors hover:text-text-2">
+            Architecture
+          </a>
           <a href="#pricing" className="transition-colors hover:text-text-2">
             Pricing
           </a>
