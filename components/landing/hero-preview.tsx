@@ -101,12 +101,33 @@ export function HeroPreview() {
         className="relative flex overflow-hidden rounded-card border border-border bg-surface"
         style={{ boxShadow: "var(--shadow-card)" }}
       >
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 w-1/3 skew-x-[-20deg]"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, color-mix(in srgb, var(--brass) 14%, transparent), transparent)",
+          }}
+          initial={{ x: "-120%" }}
+          animate={{ x: "340%" }}
+          transition={{ duration: 1.8, delay: 2, repeat: Infinity, repeatDelay: 3.2, ease: "easeInOut" }}
+        />
+
         <div className="hidden w-14 shrink-0 flex-col items-center gap-4 border-r border-border bg-surface-2/60 py-5 sm:flex">
-          <div className="h-6 w-6 rounded-md" style={{ background: "var(--brass)" }} />
+          <motion.div
+            className="h-6 w-6 rounded-md"
+            style={{ background: "var(--brass)" }}
+            animate={{ rotate: [0, 8, 0, -8, 0] }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
+          />
           <div className="mt-2 flex flex-col gap-3">
             {SIDEBAR_ICONS.map((Icon, i) => (
-              <div
+              <motion.div
                 key={i}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: 0.25 + i * 0.08 }}
+                whileHover={{ scale: 1.15 }}
                 className="flex h-8 w-8 items-center justify-center rounded-control"
                 style={
                   i === 1
@@ -115,13 +136,18 @@ export function HeroPreview() {
                 }
               >
                 <Icon size={16} style={{ color: i === 1 ? "var(--brass)" : "var(--text-3)" }} />
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
 
         <div className="min-w-0 flex-1 p-4 sm:p-5">
-          <div className="flex items-center justify-between">
+          <motion.div
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="flex items-center justify-between"
+          >
             <div>
               <div className="text-sm font-medium text-text">Acme Corp</div>
               <div className="text-xs text-text-3">Wave 2 · S/4HANA Rollout</div>
@@ -138,28 +164,51 @@ export function HeroPreview() {
                 style={{ background: "var(--status-live)" }}
               />
             </span>
-          </div>
+          </motion.div>
 
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <div className="flex items-center gap-2 rounded-control border border-border bg-surface-2 px-2 py-1.5">
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.45, delay: 0.4 }}
+              whileHover={{ y: -2, borderColor: "var(--brass)" }}
+              className="flex items-center gap-2 rounded-control border border-border bg-surface-2 px-2 py-1.5"
+            >
               <CompletionRing />
               <div className="text-[10px] leading-tight text-text-3">Complete</div>
-            </div>
-            <div className="flex flex-col justify-center rounded-control border border-border bg-surface-2 px-2.5 py-1.5">
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.45, delay: 0.48 }}
+              whileHover={{ y: -2, borderColor: "var(--brass)" }}
+              className="flex flex-col justify-center rounded-control border border-border bg-surface-2 px-2.5 py-1.5"
+            >
               <div className="font-display text-lg font-semibold text-text">
                 <AnimatedCounter value={12} />
               </div>
               <div className="text-[10px] leading-tight text-text-3">due this week</div>
-            </div>
-            <div className="flex flex-col justify-center rounded-control border border-border bg-surface-2 px-2.5 py-1.5">
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.45, delay: 0.56 }}
+              whileHover={{ y: -2, borderColor: "var(--brass)" }}
+              className="flex flex-col justify-center rounded-control border border-border bg-surface-2 px-2.5 py-1.5"
+            >
               <div className="font-display text-lg font-semibold" style={{ color: "var(--status-overdue)" }}>
                 <AnimatedCounter value={3} />
               </div>
               <div className="text-[10px] leading-tight text-text-3">at risk</div>
-            </div>
+            </motion.div>
           </div>
 
-          <div className="mt-3 h-12 rounded-control border border-border bg-surface-2">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.65 }}
+            className="mt-3 h-12 rounded-control border border-border bg-surface-2"
+          >
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={TREND} margin={{ top: 6, left: 0, right: 0, bottom: 0 }}>
                 <defs>
@@ -179,7 +228,7 @@ export function HeroPreview() {
                 />
               </AreaChart>
             </ResponsiveContainer>
-          </div>
+          </motion.div>
 
           <div className="mt-3 space-y-1.5">
             {PREVIEW_ROWS.map((row, i) => (
