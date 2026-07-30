@@ -5,7 +5,7 @@ import { IconAlertCircle, IconPencil } from "@tabler/icons-react";
 import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { useModules } from "@/components/providers/picklist-provider";
+import { useModules, useProjectRoles } from "@/components/providers/picklist-provider";
 import { updateResource } from "@/lib/actions/resources";
 import type { ResourceWithAllocation } from "@/lib/data/resources";
 
@@ -15,6 +15,7 @@ const ALLOCATIONS = [25, 50, 75, 100];
 
 export function EditResourceButton({ resource }: { resource: ResourceWithAllocation }) {
   const modules = useModules();
+  const projectRoles = useProjectRoles();
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState(resource.full_name);
   const [email, setEmail] = useState(resource.email);
@@ -100,9 +101,9 @@ export function EditResourceButton({ resource }: { resource: ResourceWithAllocat
                 onChange={(e) => setConsultantType(e.target.value)}
               >
                 <option value="">—</option>
-                <option value="functional">Functional</option>
-                <option value="technical">Technical</option>
-                <option value="pmo">PMO</option>
+                {projectRoles.map((r) => (
+                  <option key={r.id} value={r.value}>{r.value}</option>
+                ))}
               </select>
             </div>
             <div>

@@ -14,6 +14,7 @@ const PLACEHOLDER: Record<PicklistType, string> = {
   status: "e.g. In Review",
   company_code: "e.g. 1000",
   stream: "e.g. Finance",
+  project_role: "e.g. PMO",
 };
 
 export function PicklistManager({

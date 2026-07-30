@@ -7,6 +7,7 @@ import { InviteButton } from "@/components/resources/invite-button";
 import { EditResourceButton } from "@/components/resources/edit-resource-button";
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button";
 import type { ResourceWithAllocation } from "@/lib/data/resources";
+import type { InvitationRole } from "@/lib/types/database";
 
 const LOCATION_LABEL: Record<string, string> = { onsite: "Onsite", offshore: "Offshore" };
 
@@ -17,6 +18,25 @@ const TYPE_TABS: { key: TypeTab; label: string }[] = [
   { key: "functional", label: "Functional" },
   { key: "technical", label: "Technical" },
 ];
+
+// consultant_type is now a free-text Settings → Project Roles value, not a
+// fixed enum, so "PMO Team" isn't one specific role — it's everyone who
+// isn't tagged Functional or Technical (PMO, Project Manager, or any other
+// custom role an admin adds later).
+const isFunctional = (v: string | null) => (v ?? "").trim().toLowerCase() === "functional";
+const isTechnical = (v: string | null) => (v ?? "").trim().toLowerCase() === "technical";
+
+// Pre-selects the invite's project access level from the roster's Project
+// Role tag, so PMO/Project Manager resources land in the weekly digest's
+// existing pmo/project_manager recipient groups without that being set by
+// hand on every invite — Functional/Technical (and anything else) still
+// default to a plain Member.
+function defaultInviteRole(consultantType: string | null): InvitationRole {
+  const value = (consultantType ?? "").trim().toLowerCase();
+  if (value === "pmo") return "pmo";
+  if (value === "project manager") return "project_manager";
+  return "member";
+}
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
@@ -51,11 +71,18 @@ export function ResourcesTable({
 
   const counts = {
     all: rows.length,
-    pmo: rows.filter((r) => r.consultant_type === "pmo").length,
-    functional: rows.filter((r) => r.consultant_type === "functional").length,
-    technical: rows.filter((r) => r.consultant_type === "technical").length,
+    pmo: rows.filter((r) => !isFunctional(r.consultant_type) && !isTechnical(r.consultant_type)).length,
+    functional: rows.filter((r) => isFunctional(r.consultant_type)).length,
+    technical: rows.filter((r) => isTechnical(r.consultant_type)).length,
   };
-  const filteredRows = tab === "all" ? rows : rows.filter((r) => r.consultant_type === tab);
+  const filteredRows =
+    tab === "all"
+      ? rows
+      : tab === "functional"
+        ? rows.filter((r) => isFunctional(r.consultant_type))
+        : tab === "technical"
+          ? rows.filter((r) => isTechnical(r.consultant_type))
+          : rows.filter((r) => !isFunctional(r.consultant_type) && !isTechnical(r.consultant_type));
 
   return (
     <div>
@@ -123,15 +150,7 @@ export function ResourcesTable({
                   </div>
                 </td>
 
-                <td className="px-4 py-2.5 text-text-2">
-                  {resource.consultant_type === "functional"
-                    ? "Functional"
-                    : resource.consultant_type === "technical"
-                      ? "Technical"
-                      : resource.consultant_type === "pmo"
-                        ? "PMO"
-                        : "—"}
-                </td>
+                <td className="px-4 py-2.5 text-text-2">{resource.consultant_type || "—"}</td>
 
                 <td className="px-4 py-2.5 text-text-2">{resource.role_title || "—"}</td>
 
@@ -170,7 +189,7 @@ export function ResourcesTable({
                       resourceId={resource.id}
                       resourceName={resource.full_name}
                       defaultAllocationPct={resource.allocation_pct ?? 50}
-                      defaultRole={resource.consultant_type === "pmo" ? "pmo" : "member"}
+                      defaultRole={defaultInviteRole(resource.consultant_type)}
                       projectOptions={projectOptions}
                     />
                   ) : (

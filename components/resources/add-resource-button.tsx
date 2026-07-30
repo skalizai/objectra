@@ -5,7 +5,7 @@ import { IconAlertCircle, IconCircleCheck, IconUserPlus } from "@tabler/icons-re
 import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { useModules } from "@/components/providers/picklist-provider";
+import { useModules, useProjectRoles } from "@/components/providers/picklist-provider";
 import { addResource, type AddResourceState } from "@/lib/actions/resources";
 
 const initialState: AddResourceState = { error: null, success: false };
@@ -14,6 +14,7 @@ const selectClass =
 
 export function AddResourceButton() {
   const modules = useModules();
+  const projectRoles = useProjectRoles();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(addResource, initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -75,9 +76,9 @@ export function AddResourceButton() {
               <Label htmlFor="consultant_type">Functional, Technical or PMO</Label>
               <select id="consultant_type" name="consultant_type" className={selectClass} defaultValue="">
                 <option value="">—</option>
-                <option value="functional">Functional</option>
-                <option value="technical">Technical</option>
-                <option value="pmo">PMO</option>
+                {projectRoles.map((r) => (
+                  <option key={r.id} value={r.value}>{r.value}</option>
+                ))}
               </select>
             </div>
             <div>

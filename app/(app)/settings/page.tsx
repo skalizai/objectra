@@ -95,6 +95,12 @@ export default async function SettingsPage({
               items={picklists.complexities}
             />
             <PicklistManager
+              type="project_role"
+              title="Project Roles"
+              description="Roles available when adding a resource (e.g. Functional, Technical, PMO, Project Manager)."
+              items={picklists.projectRoles}
+            />
+            <PicklistManager
               type="company_code"
               title="Company codes"
               description="Company codes available on projects and objects (e.g. 1000, 2000)."

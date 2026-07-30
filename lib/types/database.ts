@@ -16,8 +16,11 @@ export type ObjectType =
 // layer, not a fixed DB enum, so admins can maintain their own list.
 export type ObjectStatus = string;
 export type AssignedRole = "developer" | "functional";
-export type PicklistType = "module" | "complexity" | "status" | "company_code" | "stream";
-export type ConsultantType = "functional" | "technical" | "pmo";
+export type PicklistType = "module" | "complexity" | "status" | "company_code" | "stream" | "project_role";
+// Free-text now — validated against picklists(type='project_role') at the
+// app layer (Settings → Project Roles), not a fixed DB enum, so admins can
+// maintain their own list (Functional, Technical, PMO, Project Manager, ...).
+export type ConsultantType = string;
 export type ResourceLocation = "onsite" | "offshore";
 export type InvitationRole = "org_admin" | "project_manager" | "technical_lead" | "pmo" | "member" | "client";
 export type InvitationStatus = "pending" | "accepted" | "expired";

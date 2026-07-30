@@ -16,7 +16,9 @@ const inputClass =
 
 // Functional consultant slots should only offer functional-type resources,
 // and technical (assigned_role "developer") slots only technical-type ones.
-const ROLE_CONSULTANT_TYPE: Record<AssignedRole, ConsultantType> = {
+// consultant_type is a free-text Settings → Project Roles value now, so this
+// matches case-insensitively rather than against a fixed enum.
+const ROLE_CONSULTANT_TYPE: Record<AssignedRole, string> = {
   functional: "functional",
   developer: "technical",
 };
@@ -37,7 +39,9 @@ function AssigneeSelect({
   // consultant_type no longer matches, so an existing assignment never
   // silently disappears from the list.
   const eligible = resources.filter(
-    (r) => r.consultant_type === ROLE_CONSULTANT_TYPE[role] || r.id === current?.resource.id,
+    (r) =>
+      (r.consultant_type ?? "").trim().toLowerCase() === ROLE_CONSULTANT_TYPE[role] ||
+      r.id === current?.resource.id,
   );
   return (
     <select
