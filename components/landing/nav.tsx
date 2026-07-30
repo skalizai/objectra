@@ -8,6 +8,7 @@ import { Logo } from "@/components/ui/logo";
 const LINKS = [
   { href: "#platform", label: "Platform" },
   { href: "#platform", label: "Resources" },
+  { href: "#architecture", label: "Architecture" },
   { href: "#pricing", label: "Pricing" },
 ];
 
