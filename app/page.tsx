@@ -2,6 +2,7 @@ import { LandingNav } from "@/components/landing/nav";
 import { Hero } from "@/components/landing/hero";
 import { FeatureGrid } from "@/components/landing/feature-grid";
 import { PipelinePreview } from "@/components/landing/pipeline-preview";
+import { ResourcesFlow } from "@/components/landing/resources-flow";
 import { ArchitectureSection } from "@/components/landing/architecture";
 import { CtaBand } from "@/components/landing/cta-band";
 import { LandingFooter } from "@/components/landing/footer";
@@ -14,6 +15,7 @@ export default function LandingPage() {
         <Hero />
         <PipelinePreview />
         <FeatureGrid />
+        <ResourcesFlow />
         <ArchitectureSection />
         <CtaBand />
       </main>
