@@ -72,11 +72,12 @@ export function AddResourceButton() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="consultant_type">Functional or technical</Label>
+              <Label htmlFor="consultant_type">Functional, Technical or PMO</Label>
               <select id="consultant_type" name="consultant_type" className={selectClass} defaultValue="">
                 <option value="">—</option>
                 <option value="functional">Functional</option>
                 <option value="technical">Technical</option>
+                <option value="pmo">PMO</option>
               </select>
             </div>
             <div>

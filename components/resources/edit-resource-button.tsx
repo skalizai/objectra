@@ -92,7 +92,7 @@ export function EditResourceButton({ resource }: { resource: ResourceWithAllocat
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="edit_type">Functional or technical</Label>
+              <Label htmlFor="edit_type">Functional, Technical or PMO</Label>
               <select
                 id="edit_type"
                 className={selectClass}
@@ -102,6 +102,7 @@ export function EditResourceButton({ resource }: { resource: ResourceWithAllocat
                 <option value="">—</option>
                 <option value="functional">Functional</option>
                 <option value="technical">Technical</option>
+                <option value="pmo">PMO</option>
               </select>
             </div>
             <div>

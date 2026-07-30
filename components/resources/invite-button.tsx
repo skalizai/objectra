@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/input";
 import { inviteResourceRecord } from "@/lib/actions/invitations";
 import type { InviteResourceState } from "@/lib/actions/invitations";
+import type { InvitationRole } from "@/lib/types/database";
 
 const initialState: InviteResourceState = { error: null, success: false };
 const selectClass =
@@ -16,11 +17,13 @@ export function InviteButton({
   resourceId,
   resourceName,
   defaultAllocationPct,
+  defaultRole = "member",
   projectOptions,
 }: {
   resourceId: string;
   resourceName: string;
   defaultAllocationPct: number;
+  defaultRole?: InvitationRole;
   projectOptions: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
@@ -73,7 +76,7 @@ export function InviteButton({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="role">Access level</Label>
-              <select id="role" name="role" required className={selectClass} defaultValue="member">
+              <select id="role" name="role" required className={selectClass} defaultValue={defaultRole}>
                 <option value="project_manager">Project manager</option>
                 <option value="technical_lead">Technical lead</option>
                 <option value="pmo">PMO</option>
