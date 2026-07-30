@@ -8,9 +8,9 @@ import { updateObjectByManager } from "@/lib/actions/objects";
 import { useStatuses } from "@/components/providers/picklist-provider";
 import { FALLBACK_STATUS_COLOR } from "@/lib/object-meta";
 import type { ObjectWithAssignees } from "@/lib/data/objects";
-import type { ObjectStatus } from "@/lib/types/database";
+import type { ConsultantType, ObjectStatus } from "@/lib/types/database";
 
-type ResourceOption = { id: string; full_name: string; email: string };
+type ResourceOption = { id: string; full_name: string; email: string; consultant_type: ConsultantType | null };
 
 export function PipelineBoard({
   projectId,

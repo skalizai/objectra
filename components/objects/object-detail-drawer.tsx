@@ -13,12 +13,19 @@ import {
 } from "@/components/providers/picklist-provider";
 import { setObjectAssignee, updateObjectByManager } from "@/lib/actions/objects";
 import type { ObjectWithAssignees } from "@/lib/data/objects";
-import type { AssignedRole } from "@/lib/types/database";
+import type { AssignedRole, ConsultantType } from "@/lib/types/database";
 
-type ResourceOption = { id: string; full_name: string; email: string };
+type ResourceOption = { id: string; full_name: string; email: string; consultant_type: ConsultantType | null };
 
 const selectClass =
   "h-9 w-full rounded-control border border-border-2 bg-surface-2 px-2.5 text-sm text-text focus:border-brass focus-visible:outline-none";
+
+// Functional consultant slots should only offer functional-type resources,
+// and technical (assigned_role "developer") slots only technical-type ones.
+const ROLE_CONSULTANT_TYPE: Record<AssignedRole, ConsultantType> = {
+  functional: "functional",
+  developer: "technical",
+};
 
 function ConsultantSelect({
   object,
@@ -39,6 +46,13 @@ function ConsultantSelect({
     return <p className="text-sm text-text-2">{current?.resource.full_name ?? "—"}</p>;
   }
 
+  // Keep the currently assigned resource selectable even if their
+  // consultant_type no longer matches (e.g. changed after assignment),
+  // so an existing assignment never silently disappears from the list.
+  const eligible = resources.filter(
+    (r) => r.consultant_type === ROLE_CONSULTANT_TYPE[role] || r.id === current?.resource.id,
+  );
+
   return (
     <select
       className={selectClass}
@@ -46,7 +60,7 @@ function ConsultantSelect({
       onChange={(e) => onAssign(role, e.target.value || null)}
     >
       <option value="">Unassigned</option>
-      {resources.map((r) => (
+      {eligible.map((r) => (
         <option key={r.id} value={r.id}>{r.full_name}</option>
       ))}
     </select>

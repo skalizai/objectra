@@ -5,14 +5,21 @@ import { WricefGlyph } from "@/components/ui/wricef-glyph";
 import { useStatuses } from "@/components/providers/picklist-provider";
 import { setObjectAssignee, updateObjectByManager } from "@/lib/actions/objects";
 import type { ObjectWithAssignees } from "@/lib/data/objects";
-import type { AssignedRole, ObjectStatus } from "@/lib/types/database";
+import type { AssignedRole, ConsultantType, ObjectStatus } from "@/lib/types/database";
 
-type ResourceOption = { id: string; full_name: string; email: string };
+type ResourceOption = { id: string; full_name: string; email: string; consultant_type: ConsultantType | null };
 
 const selectClass =
   "h-8 w-full rounded-[7px] border border-border-2 bg-surface-2 px-2 text-xs text-text-2 focus:border-brass focus-visible:outline-none";
 const inputClass =
   "h-8 w-full rounded-[7px] border border-border-2 bg-surface-2 px-2 text-xs text-text focus:border-brass focus-visible:outline-none";
+
+// Functional consultant slots should only offer functional-type resources,
+// and technical (assigned_role "developer") slots only technical-type ones.
+const ROLE_CONSULTANT_TYPE: Record<AssignedRole, ConsultantType> = {
+  functional: "functional",
+  developer: "technical",
+};
 
 function AssigneeSelect({
   obj,
@@ -26,6 +33,12 @@ function AssigneeSelect({
   onChange: (obj: ObjectWithAssignees, role: AssignedRole, resourceId: string | null) => void;
 }) {
   const current = obj.assignees.find((a) => a.assigned_role === role);
+  // Keep the currently assigned resource selectable even if their
+  // consultant_type no longer matches, so an existing assignment never
+  // silently disappears from the list.
+  const eligible = resources.filter(
+    (r) => r.consultant_type === ROLE_CONSULTANT_TYPE[role] || r.id === current?.resource.id,
+  );
   return (
     <select
       className={selectClass}
@@ -33,7 +46,7 @@ function AssigneeSelect({
       onChange={(e) => onChange(obj, role, e.target.value || null)}
     >
       <option value="">Unassigned</option>
-      {resources.map((r) => (
+      {eligible.map((r) => (
         <option key={r.id} value={r.id}>{r.full_name}</option>
       ))}
     </select>

@@ -46,11 +46,11 @@ export async function getResourcesForAssignment(orgId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("resources")
-    .select("id, full_name, email")
+    .select("id, full_name, email, consultant_type")
     .eq("org_id", orgId)
     .order("full_name");
 
-  return (data ?? []) as Pick<Resource, "id" | "full_name" | "email">[];
+  return (data ?? []) as Pick<Resource, "id" | "full_name" | "email" | "consultant_type">[];
 }
 
 export interface AuditTrailEntry {

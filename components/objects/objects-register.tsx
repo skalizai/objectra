@@ -10,9 +10,9 @@ import { ObjectDetailDrawer } from "@/components/objects/object-detail-drawer";
 import { useModules, useStatuses } from "@/components/providers/picklist-provider";
 import { OBJECT_TYPE_META } from "@/lib/object-meta";
 import type { ObjectWithAssignees } from "@/lib/data/objects";
-import type { ObjectStatus, ObjectType } from "@/lib/types/database";
+import type { ConsultantType, ObjectStatus, ObjectType } from "@/lib/types/database";
 
-type ResourceOption = { id: string; full_name: string; email: string };
+type ResourceOption = { id: string; full_name: string; email: string; consultant_type: ConsultantType | null };
 
 function consultantName(obj: ObjectWithAssignees, role: "functional" | "developer") {
   return obj.assignees.find((a) => a.assigned_role === role)?.resource.full_name ?? "—";
