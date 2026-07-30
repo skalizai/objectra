@@ -47,7 +47,7 @@ export default async function DashboardPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <StatusDonut data={data.statusDistribution} />
         <ModuleBar data={data.byModule} />
-        <ProjectProgress data={data.projectProgress} />
+        <ProjectProgress data={data.projectProgress} statusAccents={data.statusAccents} />
         <DeadlineMonitor data={data.deadlineMonitor} />
       </div>
     </div>

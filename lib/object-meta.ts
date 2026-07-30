@@ -27,6 +27,11 @@ export function isDoneStatus(status: string, statuses: Pick<Picklist, "value" | 
  * literal Settings → Object statuses value. */
 export const DEVELOPMENT_STATUS = "Development in Progress";
 
+/** Matches the literal Settings → Object statuses value where the
+ * functional consultant is expected to be actively testing (see
+ * lib/email/notify-status-change.ts, which fires the same-named trigger). */
+export const FUNCTIONAL_TESTING_STATUS = "Functional Testing in Quality";
+
 export function isOverdue(dueDate: string | null, status: string): boolean {
   if (!dueDate || status !== DEVELOPMENT_STATUS) return false;
   return new Date(dueDate).getTime() < Date.now();

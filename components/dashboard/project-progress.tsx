@@ -5,7 +5,13 @@ import { motion } from "framer-motion";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import type { DashboardData } from "@/lib/data/dashboard";
 
-export function ProjectProgress({ data }: { data: DashboardData["projectProgress"] }) {
+export function ProjectProgress({
+  data,
+  statusAccents,
+}: {
+  data: DashboardData["projectProgress"];
+  statusAccents: DashboardData["statusAccents"];
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -56,11 +62,59 @@ export function ProjectProgress({ data }: { data: DashboardData["projectProgress
                     style={{ background: "var(--status-live)" }}
                   />
                 </div>
+
+                {(project.developmentInProgress.length > 0 ||
+                  project.functionalTestingInQuality.length > 0) && (
+                  <div className="mt-3 space-y-3">
+                    <ResourceHoldingGroup
+                      label="Development in Progress"
+                      accent={statusAccents.developmentInProgress}
+                      holdings={project.developmentInProgress}
+                    />
+                    <ResourceHoldingGroup
+                      label="Functional testing quality"
+                      accent={statusAccents.functionalTestingInQuality}
+                      holdings={project.functionalTestingInQuality}
+                    />
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
       )}
     </motion.div>
+  );
+}
+
+function ResourceHoldingGroup({
+  label,
+  accent,
+  holdings,
+}: {
+  label: string;
+  accent: string;
+  holdings: DashboardData["projectProgress"][number]["developmentInProgress"];
+}) {
+  if (holdings.length === 0) return null;
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-text-3">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: accent }} />
+        {label}
+      </div>
+      <ul className="space-y-1 pl-3">
+        {holdings.map((h) => (
+          <li key={h.objectId} className="flex items-center justify-between gap-3 text-xs">
+            <span className="min-w-0 truncate text-text-2">
+              {h.wricefId && <span className="mr-1.5 font-mono text-text-3">{h.wricefId}</span>}
+              {h.title}
+            </span>
+            <span className="shrink-0 text-text-3">{h.resourceName}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
