@@ -23,7 +23,7 @@ export default async function AssignmentsPage({ params }: { params: Promise<{ id
       <DeadlineTiles objects={objects} />
 
       <div className="flex justify-end">
-        <AddObjectButton projectId={id} />
+        <AddObjectButton projectId={id} resources={resources} />
       </div>
 
       <AssignmentsTable projectId={id} objects={objects} resources={resources} />

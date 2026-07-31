@@ -82,27 +82,42 @@ export async function createObject(
     stream = stream || project?.stream || "";
   }
 
-  const { error } = await supabase.from("objects").insert({
-    project_id: projectId,
-    title,
-    object_type: objectType,
-    // wricef_id is intentionally omitted — the objects_set_wricef_id
-    // trigger fills it in from the project/module/object type.
-    module: String(formData.get("module") ?? "").trim() || null,
-    complexity: String(formData.get("complexity") ?? "").trim() || null,
-    wave: String(formData.get("wave") ?? "").trim() || null,
-    priority: String(formData.get("priority") ?? "").trim() || null,
-    due_date: String(formData.get("due_date") ?? "").trim() || null,
-    fds_received: formData.get("fds_received") === "yes",
-    description: String(formData.get("description") ?? "").trim() || null,
-    company_code: companyCode || null,
-    business_unit: String(formData.get("business_unit") ?? "").trim().slice(0, 10) || null,
-    stream: stream || null,
-    created_by: viewer.user.id,
-    updated_by: viewer.user.id,
-  });
+  const status = String(formData.get("status") ?? "").trim();
+
+  const { data: inserted, error } = await supabase
+    .from("objects")
+    .insert({
+      project_id: projectId,
+      title,
+      object_type: objectType,
+      // wricef_id is intentionally omitted — the objects_set_wricef_id
+      // trigger fills it in from the project/module/object type.
+      module: String(formData.get("module") ?? "").trim() || null,
+      complexity: String(formData.get("complexity") ?? "").trim() || null,
+      wave: String(formData.get("wave") ?? "").trim() || null,
+      priority: String(formData.get("priority") ?? "").trim() || null,
+      due_date: String(formData.get("due_date") ?? "").trim() || null,
+      fds_received: formData.get("fds_received") === "yes",
+      description: String(formData.get("description") ?? "").trim() || null,
+      company_code: companyCode || null,
+      business_unit: String(formData.get("business_unit") ?? "").trim().slice(0, 10) || null,
+      stream: stream || null,
+      // Falls back to the DB default when the org has no statuses
+      // configured yet (Settings → Object statuses) — should not normally
+      // happen since the dropdown is populated from that same list.
+      ...(status ? { status } : {}),
+      created_by: viewer.user.id,
+      updated_by: viewer.user.id,
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: error.message };
+
+  const functionalResourceId = String(formData.get("functional_resource_id") ?? "").trim() || null;
+  const technicalResourceId = String(formData.get("technical_resource_id") ?? "").trim() || null;
+  if (functionalResourceId) await setObjectAssignee(inserted.id, projectId, functionalResourceId, "functional");
+  if (technicalResourceId) await setObjectAssignee(inserted.id, projectId, technicalResourceId, "developer");
 
   revalidatePath(`/projects/${projectId}`);
   return { error: null };

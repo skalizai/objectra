@@ -9,20 +9,36 @@ import {
   useCompanyCodes,
   useComplexities,
   useModules,
+  useStatuses,
   useStreams,
 } from "@/components/providers/picklist-provider";
 import { createObject, type FormActionState } from "@/lib/actions/objects";
 import { OBJECT_TYPE_META } from "@/lib/object-meta";
+import type { ConsultantType } from "@/lib/types/database";
 
 const initialState: FormActionState = { error: null };
 const selectClass =
   "h-10 w-full rounded-control border border-border-2 bg-surface-2 px-3 text-sm text-text focus:border-brass focus-visible:outline-none";
 
-export function AddObjectButton({ projectId }: { projectId: string }) {
+type ResourceOption = { id: string; full_name: string; email: string; consultant_type: ConsultantType | null };
+
+const isFunctional = (v: string | null) => (v ?? "").trim().toLowerCase() === "functional";
+const isTechnical = (v: string | null) => (v ?? "").trim().toLowerCase() === "technical";
+
+export function AddObjectButton({
+  projectId,
+  resources,
+}: {
+  projectId: string;
+  resources: ResourceOption[];
+}) {
   const modules = useModules();
   const complexities = useComplexities();
   const companyCodes = useCompanyCodes();
   const streams = useStreams();
+  const statuses = useStatuses();
+  const functionalResources = resources.filter((r) => isFunctional(r.consultant_type));
+  const technicalResources = resources.filter((r) => isTechnical(r.consultant_type));
   const [open, setOpen] = useState(false);
   const boundAction = createObject.bind(null, projectId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
@@ -63,13 +79,23 @@ export function AddObjectButton({ projectId }: { projectId: string }) {
             <Input id="title" name="title" required placeholder="Vendor onboarding approval" />
           </div>
 
-          <div>
-            <Label htmlFor="object_type">Object type</Label>
-            <select id="object_type" name="object_type" required className={selectClass}>
-              {Object.keys(OBJECT_TYPE_META).map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="object_type">Object type</Label>
+              <select id="object_type" name="object_type" required className={selectClass}>
+                {Object.keys(OBJECT_TYPE_META).map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <select id="status" name="status" required className={selectClass} defaultValue={statuses[0]?.value ?? ""}>
+                {statuses.map((s) => (
+                  <option key={s.id} value={s.value}>{s.value}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -88,6 +114,27 @@ export function AddObjectButton({ projectId }: { projectId: string }) {
                 <option value="">—</option>
                 {complexities.map((c) => (
                   <option key={c.id} value={c.value}>{c.value}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="functional_resource_id">Functional consultant</Label>
+              <select id="functional_resource_id" name="functional_resource_id" className={selectClass} defaultValue="">
+                <option value="">Unassigned</option>
+                {functionalResources.map((r) => (
+                  <option key={r.id} value={r.id}>{r.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="technical_resource_id">Technical consultant</Label>
+              <select id="technical_resource_id" name="technical_resource_id" className={selectClass} defaultValue="">
+                <option value="">Unassigned</option>
+                {technicalResources.map((r) => (
+                  <option key={r.id} value={r.id}>{r.full_name}</option>
                 ))}
               </select>
             </div>

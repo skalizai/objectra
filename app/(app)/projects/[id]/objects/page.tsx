@@ -20,7 +20,7 @@ export default async function ObjectsRegisterPage({ params }: { params: Promise<
       {canEdit && (
         <div className="mb-4 flex justify-end gap-2">
           <ImportXlsxButton projectId={id} />
-          <AddObjectButton projectId={id} />
+          <AddObjectButton projectId={id} resources={resources} />
         </div>
       )}
       <ObjectsRegister projectId={id} objects={objects} canEdit={!!canEdit} resources={resources} />

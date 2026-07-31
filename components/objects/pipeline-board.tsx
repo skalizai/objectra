@@ -46,10 +46,20 @@ export function PipelineBoard({
     void updateObjectByManager(objectId, projectId, { status });
   }
 
+  // Only show a lane for statuses that currently have an object in them —
+  // derived from `items` (not the full statuses picklist), so moving the
+  // last object out of a lane drops it immediately, and moving one into a
+  // status with no lane yet makes it appear right away, in picklist order.
+  const visibleStatuses = statuses.filter((s) => items.some((o) => o.status === s.value));
+
   return (
     <>
+      {visibleStatuses.length === 0 && (
+        <p className="py-12 text-center text-sm text-text-3">No objects in this project yet.</p>
+      )}
+
       <div className="scroll-x-top flex gap-4 overflow-x-auto pb-2 pt-5">
-        {statuses.map((column) => {
+        {visibleStatuses.map((column) => {
           const columnItems = items.filter((o) => o.status === column.value);
           return (
             <div key={column.id} className="w-[260px] shrink-0">
@@ -96,9 +106,6 @@ export function PipelineBoard({
                     )}
                   </motion.div>
                 ))}
-                {columnItems.length === 0 && (
-                  <p className="px-1 py-3 text-center text-xs text-text-3">Nothing here</p>
-                )}
               </div>
             </div>
           );
