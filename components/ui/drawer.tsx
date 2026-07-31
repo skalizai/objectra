@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { IconX } from "@tabler/icons-react";
 
@@ -26,7 +27,16 @@ export function Drawer({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  return (
+  // Portalled straight to <body> — every page's content sits inside
+  // PageTransition's animated wrapper (components/app-shell/page-transition.tsx),
+  // and a `transform` on that ancestor (which Framer Motion leaves applied)
+  // turns it into the containing block for any `position: fixed` descendant.
+  // Without the portal, this drawer would be pinned to the top of that
+  // (potentially very tall) content box instead of the actual viewport —
+  // requiring a scroll up to see it on any long page.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -62,6 +72,7 @@ export function Drawer({
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
