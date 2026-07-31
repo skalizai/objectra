@@ -252,8 +252,12 @@ export interface NotificationSettings {
   deadline_lead_days: number;
   weekly_digest_enabled: boolean;
   digest_day: DigestDay;
-  digest_recipients: { pms: boolean; clients: boolean };
+  digest_recipients: { pms: boolean; pmo: boolean; clients: boolean };
   extra_digest_emails: string[];
+  // Scopes the whole digest (totals, moved-this-week, overdue) to objects
+  // currently in one of these statuses — empty means every status (no
+  // filter), matching behavior before this column existed.
+  digest_statuses: string[];
   created_at: string;
   updated_at: string;
 }

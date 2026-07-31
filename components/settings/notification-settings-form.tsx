@@ -9,21 +9,24 @@ import {
   updateNotificationSettings,
   type SimpleActionState,
 } from "@/lib/actions/settings";
-import type { NotificationSettings } from "@/lib/types/database";
+import type { NotificationSettings, Picklist } from "@/lib/types/database";
 
 const initialState: SimpleActionState = { error: null, success: false };
 
 export function NotificationSettingsForm({
   projectId,
   settings,
+  statuses,
 }: {
   projectId: string;
   settings: NotificationSettings;
+  statuses: Picklist[];
 }) {
   const boundAction = updateNotificationSettings.bind(null, projectId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
   const [testState, setTestState] = useState<{ error: string | null; success: boolean } | null>(null);
   const [isSendingTest, startTestTransition] = useTransition();
+  const [clientsChecked, setClientsChecked] = useState(settings.digest_recipients?.clients ?? true);
 
   return (
     <div className="rounded-card border border-border bg-surface p-5" style={{ boxShadow: "var(--shadow-card)" }}>
@@ -83,31 +86,63 @@ export function NotificationSettingsForm({
         </div>
 
         <div className="space-y-1.5">
+          <Label>Statuses to include</Label>
+          <p className="text-xs text-text-3">
+            Leave all unchecked to include the whole project. Otherwise every count in the digest
+            (total, live, at risk, % complete, moved this week) only considers objects currently in
+            one of the checked statuses.
+          </p>
+          {statuses.map((s) => (
+            <label key={s.id} className="flex items-center gap-2 text-sm text-text-2">
+              <input
+                type="checkbox"
+                name="digest_statuses"
+                value={s.value}
+                defaultChecked={(settings.digest_statuses ?? []).includes(s.value)}
+              />
+              {s.value}
+            </label>
+          ))}
+        </div>
+
+        <div className="space-y-1.5">
           <Label>Recipients</Label>
           <label className="flex items-center gap-2 text-sm text-text-2">
             <input type="checkbox" name="recipients_pms" defaultChecked={settings.digest_recipients?.pms ?? true} />
-            Team (Project Manager, Technical Lead, PMO, Members)
+            Team (Project Manager, Technical Lead, Members)
           </label>
           <label className="flex items-center gap-2 text-sm text-text-2">
-            <input type="checkbox" name="recipients_clients" defaultChecked={settings.digest_recipients?.clients ?? true} />
+            <input type="checkbox" name="recipients_pmo" defaultChecked={settings.digest_recipients?.pmo ?? true} />
+            PMO
+          </label>
+          <label className="flex items-center gap-2 text-sm text-text-2">
+            <input
+              type="checkbox"
+              name="recipients_clients"
+              checked={clientsChecked}
+              onChange={(e) => setClientsChecked(e.target.checked)}
+            />
             Clients
           </label>
-        </div>
 
-        <div>
-          <Label htmlFor="extra_digest_emails">Weekly digest emails</Label>
-          <textarea
-            id="extra_digest_emails"
-            name="extra_digest_emails"
-            rows={2}
-            defaultValue={(settings.extra_digest_emails ?? []).join(", ")}
-            placeholder="jane@client.com, john@partner.com"
-            className="w-full resize-none rounded-control border border-border-2 bg-surface-2 px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-brass focus-visible:outline-none"
-          />
-          <p className="mt-1 text-xs text-text-3">
-            Extra addresses to include on the weekly digest — for people without an Objectra login.
-            Comma or newline separated.
-          </p>
+          {/* Kept mounted (just visually hidden) rather than unmounted when
+              Clients is off, so unchecking it and saving doesn't wipe out an
+              already-typed address list — the digest job itself is what
+              skips these addresses while Clients is unchecked. */}
+          <div className={clientsChecked ? "pl-6 pt-1" : "hidden"}>
+            <Label htmlFor="extra_digest_emails">Client email addresses</Label>
+            <textarea
+              id="extra_digest_emails"
+              name="extra_digest_emails"
+              rows={2}
+              defaultValue={(settings.extra_digest_emails ?? []).join(", ")}
+              placeholder="jane@client.com, john@partner.com"
+              className="w-full resize-none rounded-control border border-border-2 bg-surface-2 px-3 py-2 text-sm text-text placeholder:text-text-3 focus:border-brass focus-visible:outline-none"
+            />
+            <p className="mt-1 text-xs text-text-3">
+              Clients without an Objectra login — comma or newline separated.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 pt-1">

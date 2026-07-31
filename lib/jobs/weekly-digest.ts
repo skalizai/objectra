@@ -108,7 +108,15 @@ export async function runWeeklyDigest(options?: {
 
     const statuses = await getStatuses(project.org_id);
     const { data: objects } = await supabase.from("objects").select("*").eq("project_id", project.id);
-    const objectList = (objects ?? []) as ObjectRow[];
+    const allObjects = (objects ?? []) as ObjectRow[];
+
+    // Settings → Notifications → "Statuses to include" scopes the whole
+    // digest (totals, moved-this-week, overdue) to a subset of the
+    // pipeline — empty means every status, unchanged from before this
+    // setting existed.
+    const digestStatuses = (settings.digest_statuses ?? []) as string[];
+    const objectList =
+      digestStatuses.length > 0 ? allObjects.filter((o) => digestStatuses.includes(o.status)) : allObjects;
 
     const live = objectList.filter((o) => isDoneStatus(o.status, statuses)).length;
     const atRisk = objectList.filter((o) => isOverdue(o.due_date, o.status));
@@ -154,11 +162,10 @@ export async function runWeeklyDigest(options?: {
       .in(
         "role",
         [
-          // "pms" covers everyone internal to the delivery team, not just
-          // PMs — Technical Lead, PMO, and regular Members too.
-          ...(settings.digest_recipients?.pms !== false
-            ? ["project_manager", "technical_lead", "pmo", "member"]
-            : []),
+          // "pms" covers the rest of the delivery team, not just PMs —
+          // Technical Lead and regular Members. PMO is its own toggle.
+          ...(settings.digest_recipients?.pms !== false ? ["project_manager", "technical_lead", "member"] : []),
+          ...(settings.digest_recipients?.pmo !== false ? ["pmo"] : []),
           ...(settings.digest_recipients?.clients !== false ? ["client"] : []),
         ],
       );
@@ -169,12 +176,14 @@ export async function runWeeklyDigest(options?: {
       .filter((r): r is { profile: { full_name: string; email: string } } => !!r.profile)
       .map((r) => ({ email: r.profile.email, fullName: r.profile.full_name }));
 
-    // Admin-added addresses (Settings → Weekly digest emails) — external
-    // stakeholders with no login, so no name to greet them by.
-    const extraRecipients = ((settings.extra_digest_emails ?? []) as string[]).map((email) => ({
-      email,
-      fullName: "there",
-    }));
+    // Admin-added client addresses (Settings → Notifications → Clients →
+    // Client email addresses) — external stakeholders with no login, so no
+    // name to greet them by. Only included while Clients is checked, same
+    // as clients with an actual login.
+    const extraRecipients =
+      settings.digest_recipients?.clients !== false
+        ? ((settings.extra_digest_emails ?? []) as string[]).map((email) => ({ email, fullName: "there" }))
+        : [];
 
     // Dedupe by email — someone could plausibly be both a project member
     // and (redundantly) listed in the extra addresses.

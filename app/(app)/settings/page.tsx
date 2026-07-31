@@ -43,18 +43,20 @@ export default async function SettingsPage({
     settings = data;
   }
 
+  // Needed for the notification form's "statuses to include" checklist
+  // regardless of role, not just for the admin-only picklist manager
+  // section below.
+  const picklists = await getPicklists(viewer.profile.org_id);
+
   let orgMembers: MemberWithMemberships[] = [];
   let orgName = "";
-  let picklists: Awaited<ReturnType<typeof getPicklists>> | null = null;
   if (viewer.role === "org_admin") {
-    const [members, { data: org }, picklistBundle] = await Promise.all([
+    const [members, { data: org }] = await Promise.all([
       listOrgMembersWithMemberships(viewer.profile.org_id),
       supabase.from("organizations").select("name").eq("id", viewer.profile.org_id).single(),
-      getPicklists(viewer.profile.org_id),
     ]);
     orgMembers = members;
     orgName = org?.name ?? "";
-    picklists = picklistBundle;
   }
 
   return (
@@ -75,11 +77,17 @@ export default async function SettingsPage({
               selectedId={selectedProjectId}
             />
           </div>
-          {settings && <NotificationSettingsForm projectId={selectedProjectId} settings={settings} />}
+          {settings && (
+            <NotificationSettingsForm
+              projectId={selectedProjectId}
+              settings={settings}
+              statuses={picklists.statuses}
+            />
+          )}
         </div>
       )}
 
-      {viewer.role === "org_admin" && picklists && (
+      {viewer.role === "org_admin" && (
         <>
           <div className="grid gap-5 lg:grid-cols-2">
             <PicklistManager

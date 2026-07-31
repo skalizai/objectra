@@ -36,9 +36,11 @@ export async function updateNotificationSettings(
       digest_day: String(formData.get("digest_day") ?? "mon") as DigestDay,
       digest_recipients: {
         pms: formData.get("recipients_pms") === "on",
+        pmo: formData.get("recipients_pmo") === "on",
         clients: formData.get("recipients_clients") === "on",
       },
       extra_digest_emails: extraDigestEmails,
+      digest_statuses: formData.getAll("digest_statuses").map(String),
     })
     .eq("project_id", projectId);
 
