@@ -38,6 +38,7 @@ export async function addResource(
     primary_module: String(formData.get("primary_module") ?? "").trim() || null,
     location: String(formData.get("location") ?? "").trim() || null,
     allocation_pct: allowedAllocations.includes(allocationPct) ? allocationPct : 50,
+    email_notifications_enabled: formData.get("email_notifications_enabled") === "on",
     created_by: viewer.user.id,
   });
 
@@ -59,6 +60,7 @@ export interface UpdateResourceFields {
   primary_module?: string | null;
   location?: string | null;
   allocation_pct?: number;
+  email_notifications_enabled?: boolean;
 }
 
 /** Edits a roster row directly — name/email, type/role/area/location, and

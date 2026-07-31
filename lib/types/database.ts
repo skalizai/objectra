@@ -209,6 +209,10 @@ export interface Picklist {
   value: string;
   color: string | null;
   is_done: boolean;
+  // Only meaningful for type='status': whether moving an object into this
+  // status emails its assigned consultants (see
+  // lib/email/notify-status-change.ts).
+  notify_email: boolean;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -232,6 +236,10 @@ export interface Resource {
   allocation_pct: number | null;
   profile_id: string | null;
   invite_status: InviteStatus;
+  // Opt-out for object status-change emails (lib/email/notify-status-change.ts)
+  // — this resource still gets invite/deadline/digest emails, just skipped
+  // as a recipient for status-change notifications specifically.
+  email_notifications_enabled: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;

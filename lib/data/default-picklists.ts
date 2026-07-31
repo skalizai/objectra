@@ -24,6 +24,7 @@ export const DEFAULT_PICKLIST_BUNDLE: PicklistBundle = {
     value: s.value,
     color: s.color,
     is_done: s.is_done,
+    notify_email: false,
     sort_order: i,
     is_active: true,
     created_at: "",

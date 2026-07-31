@@ -117,6 +117,11 @@ export function AddResourceButton() {
             </select>
           </div>
 
+          <label className="flex items-center gap-2 text-sm text-text-2">
+            <input type="checkbox" name="email_notifications_enabled" defaultChecked />
+            Email
+          </label>
+
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Saving…" : "Save resource"}
           </Button>

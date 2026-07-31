@@ -24,6 +24,9 @@ export function EditResourceButton({ resource }: { resource: ResourceWithAllocat
   const [primaryModule, setPrimaryModule] = useState(resource.primary_module ?? "");
   const [location, setLocation] = useState(resource.location ?? "");
   const [allocationPct, setAllocationPct] = useState(resource.allocation_pct ?? 50);
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(
+    resource.email_notifications_enabled ?? true,
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +38,7 @@ export function EditResourceButton({ resource }: { resource: ResourceWithAllocat
     setPrimaryModule(resource.primary_module ?? "");
     setLocation(resource.location ?? "");
     setAllocationPct(resource.allocation_pct ?? 50);
+    setEmailNotificationsEnabled(resource.email_notifications_enabled ?? true);
     setError(null);
     setOpen(true);
   }
@@ -50,6 +54,7 @@ export function EditResourceButton({ resource }: { resource: ResourceWithAllocat
       primary_module: primaryModule || null,
       location: location || null,
       allocation_pct: allocationPct,
+      email_notifications_enabled: emailNotificationsEnabled,
     });
     setPending(false);
     if (result?.error) {
@@ -160,6 +165,15 @@ export function EditResourceButton({ resource }: { resource: ResourceWithAllocat
               ))}
             </select>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-text-2">
+            <input
+              type="checkbox"
+              checked={emailNotificationsEnabled}
+              onChange={(e) => setEmailNotificationsEnabled(e.target.checked)}
+            />
+            Email
+          </label>
 
           <Button onClick={handleSave} className="w-full" disabled={pending}>
             {pending ? "Saving…" : "Save changes"}

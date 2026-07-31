@@ -3,7 +3,12 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { IconAlertCircle, IconTrash } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
-import { addPicklistItem, removePicklistItem, type PicklistActionState } from "@/lib/actions/picklists";
+import {
+  addPicklistItem,
+  removePicklistItem,
+  setPicklistNotifyEmail,
+  type PicklistActionState,
+} from "@/lib/actions/picklists";
 import type { Picklist, PicklistType } from "@/lib/types/database";
 
 const initialState: PicklistActionState = { error: null };
@@ -35,6 +40,7 @@ export function PicklistManager({
   // Purely additive — never needs to be reconciled against the `items`
   // prop, so there's no render-phase state sync to get wrong.
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [notifyOverrides, setNotifyOverrides] = useState<Record<string, boolean>>({});
   const rows = items.filter((item) => !removedIds.has(item.id));
   const formRef = useRef<HTMLFormElement>(null);
   const wasPending = useRef(false);
@@ -49,6 +55,11 @@ export function PicklistManager({
   function handleRemove(id: string) {
     setRemovedIds((prev) => new Set(prev).add(id));
     removePicklistItem(id);
+  }
+
+  function handleToggleNotify(id: string, checked: boolean) {
+    setNotifyOverrides((prev) => ({ ...prev, [id]: checked }));
+    void setPicklistNotifyEmail(id, checked);
   }
 
   return (
@@ -76,13 +87,25 @@ export function PicklistManager({
                 </span>
               )}
             </span>
-            <button
-              onClick={() => handleRemove(item.id)}
-              className="text-text-3 hover:text-status-overdue"
-              aria-label={`Remove ${item.value}`}
-            >
-              <IconTrash size={14} />
-            </button>
+            <span className="flex items-center gap-3">
+              {supportsColorAndDone && (
+                <label className="flex items-center gap-1.5 text-xs text-text-3">
+                  <input
+                    type="checkbox"
+                    checked={notifyOverrides[item.id] ?? item.notify_email}
+                    onChange={(e) => handleToggleNotify(item.id, e.target.checked)}
+                  />
+                  Email
+                </label>
+              )}
+              <button
+                onClick={() => handleRemove(item.id)}
+                className="text-text-3 hover:text-status-overdue"
+                aria-label={`Remove ${item.value}`}
+              >
+                <IconTrash size={14} />
+              </button>
+            </span>
           </li>
         ))}
         {rows.length === 0 && <p className="text-sm text-text-3">Nothing added yet.</p>}
@@ -117,6 +140,10 @@ export function PicklistManager({
             <label className="flex items-center gap-1.5 text-xs text-text-2">
               <input type="checkbox" name="is_done" />
               Counts as done
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-text-2">
+              <input type="checkbox" name="notify_email" />
+              Email
             </label>
           </>
         )}
