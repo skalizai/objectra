@@ -164,7 +164,7 @@ export async function updateObjectByManager(
 
   await recordAudit(objectId, before as ObjectRow, patch, viewer.user.id);
   if (patch.status && patch.status !== (before as ObjectRow).status) {
-    await notifyObjectStatusChange(objectId, projectId, patch.status);
+    await notifyObjectStatusChange(objectId, projectId, patch.status, (before as ObjectRow).status);
   }
   revalidatePath(`/projects/${projectId}`);
   return { error: null };
@@ -222,7 +222,7 @@ export async function memberUpdateObject(
 
   if (error) return { error: error.message };
   if (patch.status && before && patch.status !== before.status) {
-    await notifyObjectStatusChange(objectId, before.project_id, patch.status);
+    await notifyObjectStatusChange(objectId, before.project_id, patch.status, before.status);
   }
   revalidatePath("/my-work");
   return { error: null };

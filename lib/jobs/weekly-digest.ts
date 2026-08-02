@@ -1,6 +1,7 @@
+import { format } from "date-fns";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient, EMAIL_FROM } from "@/lib/email/resend";
-import { isDoneStatus, isOverdue } from "@/lib/object-meta";
+import { isDoneStatus, isOverdue, resolveStatusColor } from "@/lib/object-meta";
 import WeeklyDigestEmail, { type DigestObjectItem } from "@/emails/weekly-digest-email";
 import type { DigestDay, ObjectRow, Picklist, Project } from "@/lib/types/database";
 
@@ -38,12 +39,14 @@ async function getAssigneeNames(
 function toDigestItem(
   o: ObjectRow,
   assigneeMap: Map<string, { functional?: string; technical?: string }>,
+  statuses: Pick<Picklist, "value" | "color">[],
 ): DigestObjectItem {
   const a = assigneeMap.get(o.id);
   return {
     title: o.title,
     module: o.module,
     status: o.status,
+    statusColor: resolveStatusColor(o.status, statuses),
     functionalName: a?.functional ?? null,
     technicalName: a?.technical ?? null,
     dueDate: null,
@@ -152,7 +155,7 @@ export async function runWeeklyDigest(options?: {
       Array.from(new Set([...movedObjects.map((o) => o.id), ...atRisk.slice(0, 10).map((o) => o.id)])),
     );
 
-    const movedThisWeek = movedObjects.map((o) => toDigestItem(o, assigneeMap));
+    const movedThisWeek = movedObjects.map((o) => toDigestItem(o, assigneeMap, statuses));
 
     const { data: memberRows } = await supabase
       .from("project_members")
@@ -206,6 +209,8 @@ export async function runWeeklyDigest(options?: {
 
     const percentComplete = total === 0 ? 0 : Math.round((live / total) * 100);
     const subject = `Weekly status — ${project.name}: ${percentComplete}% complete`;
+    const weekStart = format(new Date(sevenDaysAgoIso()), "MMM d");
+    const weekEnd = format(new Date(), "MMM d, yyyy");
 
     for (const recipient of allRecipients) {
       if (alreadySent.has(recipient.email)) {
@@ -221,13 +226,17 @@ export async function runWeeklyDigest(options?: {
           react: WeeklyDigestEmail({
             recipientName: recipient.fullName,
             projectName: project.name,
+            weekStart,
+            weekEnd,
             total,
             live,
             inFlight: total - live - atRisk.length,
             atRisk: atRisk.length,
             percentComplete,
             movedThisWeek,
-            overdue: atRisk.slice(0, 10).map((o) => ({ ...toDigestItem(o, assigneeMap), dueDate: o.due_date })),
+            overdue: atRisk
+              .slice(0, 10)
+              .map((o) => ({ ...toDigestItem(o, assigneeMap, statuses), dueDate: o.due_date })),
             appUrl: APP_URL,
           }),
         });

@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient, EMAIL_FROM } from "@/lib/email/resend";
 import ObjectStatusEmail from "@/emails/object-status-email";
+import { FALLBACK_STATUS_HEX } from "@/emails/components/shell-v2";
 import type { AssignedRole, ObjectRow } from "@/lib/types/database";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
@@ -22,7 +23,12 @@ type AssigneeRow = {
  * Also silently no-ops if nobody eligible is assigned, or if Resend isn't
  * configured. A failed send is logged, never thrown — it should never
  * block the status update itself. */
-export async function notifyObjectStatusChange(objectId: string, projectId: string, newStatus: string) {
+export async function notifyObjectStatusChange(
+  objectId: string,
+  projectId: string,
+  newStatus: string,
+  previousStatus: string | null,
+) {
   if (!process.env.RESEND_API_KEY) return;
 
   const admin = createAdminClient();
@@ -34,16 +40,28 @@ export async function notifyObjectStatusChange(objectId: string, projectId: stri
   if (!object || !project) return;
   const objectRow = object as ObjectRow;
 
-  const { data: statusPicklist } = await admin
-    .from("picklists")
-    .select("notify_email")
-    .eq("org_id", project.org_id)
-    .eq("type", "status")
-    .eq("value", newStatus)
-    .eq("is_active", true)
-    .maybeSingle();
+  const [{ data: statusPicklist }, { data: orgStatuses }] = await Promise.all([
+    admin
+      .from("picklists")
+      .select("notify_email, color")
+      .eq("org_id", project.org_id)
+      .eq("type", "status")
+      .eq("value", newStatus)
+      .eq("is_active", true)
+      .maybeSingle(),
+    admin
+      .from("picklists")
+      .select("value")
+      .eq("org_id", project.org_id)
+      .eq("type", "status")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true }),
+  ]);
 
   if (!statusPicklist?.notify_email) return;
+
+  const statusColor = statusPicklist.color ?? FALLBACK_STATUS_HEX;
+  const pipelineStatuses = ((orgStatuses ?? []) as { value: string }[]).map((s) => s.value);
 
   const [{ data: assignments }, { data: members }] = await Promise.all([
     admin
@@ -93,6 +111,9 @@ export async function notifyObjectStatusChange(objectId: string, projectId: stri
         wricefId: objectRow.wricef_id,
         projectName: project.name,
         status: newStatus,
+        previousStatus,
+        statusColor,
+        pipelineStatuses,
         dueDate: objectRow.due_date,
         technicalName: developer?.full_name ?? null,
         functionalName: functional?.full_name ?? null,

@@ -1,15 +1,14 @@
-import { Section, Text } from "@react-email/components";
-import { EmailShell, emailStyles } from "./components/shell";
+import { format } from "date-fns";
+import { EmailShellV2, StatusBadge, V2 } from "./components/shell-v2";
 
-const BRASS = "#C79A4B";
-const INK = "#0E1116";
-const TEXT_2 = "#5B6472";
-const OVERDUE = "#F0574B";
+const FONT = "Helvetica, Arial, sans-serif";
+const OVERDUE = "#c0392b";
 
 export interface DigestObjectItem {
   title: string;
   module: string | null;
   status: string;
+  statusColor: string;
   functionalName: string | null;
   technicalName: string | null;
   dueDate?: string | null;
@@ -18,6 +17,8 @@ export interface DigestObjectItem {
 export interface WeeklyDigestEmailProps {
   recipientName: string;
   projectName: string;
+  weekStart: string;
+  weekEnd: string;
   total: number;
   live: number;
   inFlight: number;
@@ -28,154 +29,289 @@ export interface WeeklyDigestEmailProps {
   appUrl: string;
 }
 
-function DigestItemCard({ item }: { item: DigestObjectItem }) {
+function ObjectRow({ item, isLast }: { item: DigestObjectItem; isLast: boolean }) {
   return (
-    <table role="presentation" style={{ width: "100%", marginBottom: 8 }}>
-      <tr>
-        <td style={{ padding: "10px 12px", background: "#F4F5F7", borderRadius: 8 }}>
-          <Text
-            style={{
-              margin: 0,
-              fontSize: 10,
-              fontWeight: 700,
-              color: BRASS,
-              textTransform: "uppercase" as const,
-              letterSpacing: 0.5,
-            }}
-          >
-            {item.module || "No module"}
-          </Text>
-          <Text style={{ margin: "2px 0 0", fontSize: 13, fontWeight: 700, color: INK }}>{item.title}</Text>
-          <Text style={{ margin: "3px 0 0", fontSize: 12, color: TEXT_2 }}>
-            {item.status}
-            {item.dueDate ? ` · Due ${item.dueDate}` : ""}
-          </Text>
-          <Text style={{ margin: "3px 0 0", fontSize: 11, color: "#333B48" }}>
-            Functional: <strong>{item.functionalName ?? "Unassigned"}</strong>
-            {"   ·   "}
-            Technical: <strong>{item.technicalName ?? "Unassigned"}</strong>
-          </Text>
-        </td>
-      </tr>
+    <tr>
+      <td style={{ padding: "16px 20px", borderBottom: isLast ? "none" : `1px solid ${V2.borderLight}` }}>
+        <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+          <tr>
+            <td
+              style={{
+                fontFamily: FONT,
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 1.5,
+                color: V2.goldDark,
+                lineHeight: "14px",
+              }}
+            >
+              {item.module || "—"}
+            </td>
+            <td align="right">
+              <StatusBadge label={item.status} color={item.statusColor} />
+            </td>
+          </tr>
+        </table>
+        <div
+          className="darktext"
+          style={{ fontFamily: FONT, fontSize: 15, fontWeight: 700, color: V2.heading, lineHeight: "21px", paddingTop: 6 }}
+        >
+          {item.title}
+        </div>
+        <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, lineHeight: "18px", paddingTop: 4 }}>
+          Functional: <strong style={{ color: V2.body }}>{item.functionalName ?? "Unassigned"}</strong> ·
+          Technical: <strong style={{ color: V2.body }}>{item.technicalName ?? "Unassigned"}</strong>
+          {item.dueDate && (
+            <>
+              {" "}
+              · Due{" "}
+              <span style={{ color: OVERDUE, fontWeight: 700 }}>{format(new Date(item.dueDate), "MMM d")}</span>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function ObjectList({ items }: { items: DigestObjectItem[] }) {
+  return (
+    <table
+      role="presentation"
+      cellPadding={0}
+      cellSpacing={0}
+      border={0}
+      width="100%"
+      style={{ border: `1px solid ${V2.border}`, borderRadius: 10 }}
+    >
+      {items.map((item, i) => (
+        <ObjectRow key={`${item.title}-${i}`} item={item} isLast={i === items.length - 1} />
+      ))}
     </table>
   );
 }
 
 export default function WeeklyDigestEmail({
-  recipientName = "Priya Sharma",
+  recipientName = "team",
   projectName = "Acme S/4HANA Rollout",
-  total = 128,
-  live = 64,
-  inFlight = 52,
-  atRisk = 12,
-  percentComplete = 50,
+  weekStart = "Jul 27",
+  weekEnd = "Aug 1, 2026",
+  total = 14,
+  live = 3,
+  inFlight = 11,
+  atRisk = 0,
+  percentComplete = 21,
   movedThisWeek = [
     {
       title: "Vendor onboarding approval",
       module: "MM",
-      status: "Testing in QA",
-      functionalName: "Priya Sharma",
-      technicalName: "Jordan Lee",
-    },
-  ],
-  overdue = [
-    {
-      title: "Regional sales variance",
-      module: "SD",
       status: "Development in Progress",
+      statusColor: "#b08d4c",
       functionalName: "Priya Sharma",
       technicalName: "Jordan Lee",
-      dueDate: "2026-07-18",
     },
   ],
+  overdue = [],
   appUrl = "https://objectra.app",
 }: WeeklyDigestEmailProps) {
   return (
-    <EmailShell
-      preview={`Weekly status for ${projectName} — ${percentComplete}% complete`}
-      heading="Weekly status digest"
+    <EmailShellV2
+      preview={`${projectName}: ${percentComplete}% complete · ${live} live, ${inFlight} in flight · ${movedThisWeek.length} objects moved this week`}
+      badge="Weekly Digest"
+      appUrl={appUrl}
     >
-      <Text style={emailStyles.text}>Hi {recipientName},</Text>
-      <Text style={emailStyles.text}>
-        Here&apos;s this week&apos;s status summary for <strong>{projectName}</strong>.
-      </Text>
+      <div
+        style={{
+          fontFamily: FONT,
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: 1.5,
+          textTransform: "uppercase" as const,
+          color: V2.goldDark,
+          lineHeight: "16px",
+        }}
+      >
+        Week of {weekStart} – {weekEnd}
+      </div>
+      <div
+        className="darktext"
+        style={{ fontFamily: FONT, fontSize: 28, fontWeight: 700, color: V2.heading, lineHeight: "36px", paddingTop: 10 }}
+      >
+        Weekly status digest
+      </div>
+      <div style={{ fontFamily: FONT, fontSize: 15, color: V2.body, lineHeight: "24px", paddingTop: 12 }}>
+        Hi {recipientName} — here&apos;s this week&apos;s summary for <strong style={{ color: V2.strong }}>{projectName}</strong>.
+      </div>
 
-      <Section style={{ marginTop: 12 }}>
-        <table role="presentation" style={{ width: "100%" }}>
-          <tr>
-            <td style={{ padding: "16px 18px", background: "#F4F5F7", borderRadius: 12 }}>
-              <table role="presentation" style={{ width: "100%" }}>
-                <tr>
-                  <td>
-                    <Text style={{ margin: 0, fontSize: 28, fontWeight: 700, color: INK }}>
-                      {percentComplete}%
-                    </Text>
-                    <Text style={{ margin: 0, fontSize: 12, color: TEXT_2 }}>complete</Text>
-                  </td>
-                  <td style={{ textAlign: "right" as const, verticalAlign: "bottom" as const }}>
-                    <Text style={{ margin: 0, fontSize: 12, color: TEXT_2 }}>
-                      {live} of {total} objects live
-                    </Text>
-                  </td>
-                </tr>
-              </table>
+      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+        <tr>
+          <td height={24} style={{ fontSize: 1, lineHeight: "1px" }}>
+            &nbsp;
+          </td>
+        </tr>
+      </table>
 
-              <table role="presentation" style={{ width: "100%", marginTop: 10 }}>
-                <tr>
-                  <td style={{ height: 8, borderRadius: 999, background: "#E5E7EB", overflow: "hidden" as const }}>
-                    <table role="presentation" style={{ width: `${percentComplete}%`, height: 8 }}>
-                      <tr>
-                        <td style={{ height: 8, borderRadius: 999, background: BRASS }} />
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
+      {/* Summary panel */}
+      <table
+        role="presentation"
+        cellPadding={0}
+        cellSpacing={0}
+        border={0}
+        width="100%"
+        style={{ border: `1px solid ${V2.border}`, borderLeft: `4px solid ${V2.goldDark}`, borderRadius: 10 }}
+      >
+        <tr>
+          <td style={{ padding: "22px 24px 0 24px" }}>
+            <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+              <tr>
+                <td className="darktext" style={{ fontFamily: FONT, fontSize: 36, fontWeight: 700, color: V2.heading, lineHeight: "40px" }}>
+                  {percentComplete}
+                  <span style={{ fontSize: 22, color: V2.goldDark }}>%</span>{" "}
+                  <span style={{ fontSize: 14, fontWeight: 400, color: V2.muted }}>complete</span>
+                </td>
+                <td align="right" valign="bottom" style={{ fontFamily: FONT, fontSize: 13, color: V2.muted, lineHeight: "18px" }}>
+                  {live} of {total} objects live
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style={{ padding: "14px 24px 0 24px" }}>
+            <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+              <tr>
+                <td width={`${percentComplete}%`} height={8} style={{ backgroundColor: V2.goldDark, borderRadius: "4px 0 0 4px", fontSize: 1, lineHeight: "1px" }}>
+                  &nbsp;
+                </td>
+                <td height={8} style={{ backgroundColor: V2.border, borderRadius: "0 4px 4px 0", fontSize: 1, lineHeight: "1px" }}>
+                  &nbsp;
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style={{ padding: "18px 24px 22px 24px" }}>
+            <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+              <tr>
+                <td width="33%" align="center" style={{ borderRight: `1px solid ${V2.borderLight}` }}>
+                  <div style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: V2.live, lineHeight: "30px" }}>{live}</div>
+                  <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "16px", paddingTop: 2 }}>
+                    Live
+                  </div>
+                </td>
+                <td width="34%" align="center" style={{ borderRight: `1px solid ${V2.borderLight}` }}>
+                  <div className="darktext" style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: V2.strong, lineHeight: "30px" }}>
+                    {inFlight}
+                  </div>
+                  <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "16px", paddingTop: 2 }}>
+                    In flight
+                  </div>
+                </td>
+                <td width="33%" align="center">
+                  <div
+                    className="darktext"
+                    style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: atRisk > 0 ? OVERDUE : V2.heading, lineHeight: "30px" }}
+                  >
+                    {atRisk}
+                  </div>
+                  <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "16px", paddingTop: 2 }}>
+                    At risk
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
 
-              <table role="presentation" style={{ width: "100%", marginTop: 16 }}>
-                <tr>
-                  {[
-                    { label: "Live", value: live, color: "#35C08A" },
-                    { label: "In flight", value: inFlight, color: INK },
-                    { label: "At risk", value: atRisk, color: atRisk > 0 ? OVERDUE : INK },
-                  ].map((kpi) => (
-                    <td key={kpi.label} style={{ textAlign: "center" as const }}>
-                      <Text style={{ margin: 0, fontSize: 18, fontWeight: 700, color: kpi.color }}>
-                        {kpi.value}
-                      </Text>
-                      <Text style={{ margin: 0, fontSize: 11, color: TEXT_2 }}>{kpi.label}</Text>
-                    </td>
-                  ))}
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </Section>
+      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+        <tr>
+          <td height={30} style={{ fontSize: 1, lineHeight: "1px" }}>
+            &nbsp;
+          </td>
+        </tr>
+      </table>
 
       {movedThisWeek.length > 0 && (
-        <Section style={{ marginTop: 18 }}>
-          <Text style={{ ...emailStyles.text, fontWeight: 700, marginBottom: 8 }}>What moved this week</Text>
-          {movedThisWeek.map((item) => (
-            <DigestItemCard key={item.title} item={item} />
-          ))}
-        </Section>
+        <>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1.5,
+              textTransform: "uppercase" as const,
+              color: V2.muted,
+              lineHeight: "16px",
+              paddingBottom: 12,
+            }}
+          >
+            What moved this week · {movedThisWeek.length} object{movedThisWeek.length === 1 ? "" : "s"}
+          </div>
+          <ObjectList items={movedThisWeek} />
+          <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+            <tr>
+              <td height={30} style={{ fontSize: 1, lineHeight: "1px" }}>
+                &nbsp;
+              </td>
+            </tr>
+          </table>
+        </>
       )}
 
       {overdue.length > 0 && (
-        <Section style={{ marginTop: 18 }}>
-          <Text style={{ ...emailStyles.text, fontWeight: 700, marginBottom: 8, color: OVERDUE }}>
-            Needs attention
-          </Text>
-          {overdue.map((item) => (
-            <DigestItemCard key={item.title} item={item} />
-          ))}
-        </Section>
+        <>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1.5,
+              textTransform: "uppercase" as const,
+              color: OVERDUE,
+              lineHeight: "16px",
+              paddingBottom: 12,
+            }}
+          >
+            Needs attention · {overdue.length} object{overdue.length === 1 ? "" : "s"}
+          </div>
+          <ObjectList items={overdue} />
+          <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+            <tr>
+              <td height={30} style={{ fontSize: 1, lineHeight: "1px" }}>
+                &nbsp;
+              </td>
+            </tr>
+          </table>
+        </>
       )}
 
-      <a href={`${appUrl}/dashboard`} style={emailStyles.button}>
-        Open dashboard
-      </a>
-    </EmailShell>
+      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+        <tr>
+          <td align="center" style={{ backgroundColor: V2.goldDark, borderRadius: 10 }}>
+            <a
+              href={`${appUrl}/dashboard`}
+              style={{
+                display: "block",
+                padding: "14px 24px",
+                fontFamily: FONT,
+                fontSize: 15,
+                fontWeight: 700,
+                color: V2.headerBg,
+                textDecoration: "none",
+                lineHeight: "20px",
+              }}
+            >
+              Open dashboard &nbsp;&nbsp;→
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, textAlign: "center" as const, paddingTop: 14, lineHeight: "18px" }}>
+        Full object list, blockers, and timelines are on the dashboard.
+      </div>
+    </EmailShellV2>
   );
 }
