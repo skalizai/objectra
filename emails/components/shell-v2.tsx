@@ -1,5 +1,6 @@
 import { Body, Head, Html, Preview } from "@react-email/components";
 import type { ReactNode } from "react";
+import { LOGO_MARK_DATA_URI } from "./logo-mark";
 
 // Palette matches the brand-refresh template (dark header band + gold
 // accents on an off-white card) — kept separate from components/shell.tsx's
@@ -121,10 +122,19 @@ export function EmailShellV2({
                           <table role="presentation" cellPadding={0} cellSpacing={0} border={0}>
                             <tr>
                               <td width={32} align="center" valign="middle" style={{ lineHeight: "32px" }}>
-                                <svg width="30" height="32" viewBox="0 0 30 32" role="img" aria-label="Objectra Labs logo">
-                                  <polygon points="15,2 27.5,9 27.5,23 15,30 2.5,23 2.5,9" fill="none" stroke={V2.gold} strokeWidth={2.6} />
-                                  <polygon points="15,10 20.5,13.2 20.5,18.8 15,22 9.5,18.8 9.5,13.2" fill={V2.gold} />
-                                </svg>
+                                {/* Raster PNG, not inline <svg> — most mail clients (Gmail,
+                                    Outlook) strip inline SVG for security, leaving a blank
+                                    logo. A base64 data: URI renders everywhere, no external
+                                    image request needed. next/image doesn't apply — this
+                                    HTML ships to an email client, not a Next.js page. */}
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={LOGO_MARK_DATA_URI}
+                                  width={30}
+                                  height={32}
+                                  alt="Objectra Labs"
+                                  style={{ display: "block", border: 0 }}
+                                />
                               </td>
                               <td width={10} style={{ fontSize: 1, lineHeight: "1px" }}>
                                 &nbsp;

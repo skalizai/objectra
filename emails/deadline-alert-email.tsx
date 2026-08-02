@@ -1,5 +1,8 @@
-import { Section, Text } from "@react-email/components";
-import { EmailShell, emailStyles } from "./components/shell";
+import { format } from "date-fns";
+import { EmailShellV2, V2 } from "./components/shell-v2";
+
+const FONT = "Helvetica, Arial, sans-serif";
+const OVERDUE = "#c0392b";
 
 export interface DeadlineAlertEmailProps {
   recipientName: string;
@@ -8,8 +11,69 @@ export interface DeadlineAlertEmailProps {
   appUrl: string;
 }
 
+function DeadlineRow({
+  item,
+  isLast,
+}: {
+  item: DeadlineAlertEmailProps["items"][number];
+  isLast: boolean;
+}) {
+  const overdue = item.daysRemaining < 0;
+  return (
+    <tr>
+      <td style={{ padding: "16px 20px", borderBottom: isLast ? "none" : `1px solid ${V2.borderLight}` }}>
+        <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+          <tr>
+            <td>
+              {item.wricefId && (
+                <div
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: 1.5,
+                    color: V2.goldDark,
+                    lineHeight: "14px",
+                  }}
+                >
+                  {item.wricefId}
+                </div>
+              )}
+              <div
+                className="darktext"
+                style={{ fontFamily: FONT, fontSize: 15, fontWeight: 700, color: V2.heading, lineHeight: "21px", paddingTop: 2 }}
+              >
+                {item.title}
+              </div>
+            </td>
+            <td align="right" valign="top">
+              <span
+                style={{
+                  fontFamily: FONT,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: overdue ? OVERDUE : V2.strong,
+                  background: overdue ? "#f7e3e0" : "#f3ead9",
+                  borderRadius: 12,
+                  padding: "3px 10px",
+                  display: "inline-block",
+                }}
+              >
+                {overdue ? `${Math.abs(item.daysRemaining)}d overdue` : `${item.daysRemaining}d left`}
+              </span>
+            </td>
+          </tr>
+        </table>
+        <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, lineHeight: "18px", paddingTop: 4 }}>
+          Due {format(new Date(item.dueDate), "EEE, MMM d yyyy")}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function DeadlineAlertEmail({
-  recipientName = "Jordan Lee",
+  recipientName = "team",
   projectName = "Acme S/4HANA Rollout",
   items = [
     { title: "Vendor onboarding approval", wricefId: "WF-0142", dueDate: "2026-07-22", daysRemaining: 3 },
@@ -18,39 +82,73 @@ export default function DeadlineAlertEmail({
   appUrl = "https://objectra.app",
 }: DeadlineAlertEmailProps) {
   return (
-    <EmailShell
+    <EmailShellV2
       preview={`${items.length} object${items.length === 1 ? "" : "s"} need attention on ${projectName}`}
-      heading="Deadline alert"
+      badge="Deadline Alert"
+      appUrl={appUrl}
     >
-      <Text style={emailStyles.text}>Hi {recipientName},</Text>
-      <Text style={emailStyles.text}>
-        {items.length} object{items.length === 1 ? " is" : "s are"} overdue or due soon on{" "}
-        <strong>{projectName}</strong>:
-      </Text>
+      <div
+        className="darktext"
+        style={{ fontFamily: FONT, fontSize: 28, fontWeight: 700, color: V2.heading, lineHeight: "36px" }}
+      >
+        {items.length} object{items.length === 1 ? "" : "s"} need{items.length === 1 ? "s" : ""} attention
+      </div>
 
-      <Section style={{ marginTop: 8 }}>
-        {items.map((item) => (
-          <table key={item.wricefId ?? item.title} role="presentation" style={{ width: "100%", marginBottom: 10 }}>
-            <tr>
-              <td style={{ padding: "10px 12px", background: "#F4F5F7", borderRadius: 10 }}>
-                <Text style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0E1116" }}>
-                  {item.title} {item.wricefId ? `· ${item.wricefId}` : ""}
-                </Text>
-                <Text style={{ margin: "2px 0 0", fontSize: 12, color: item.daysRemaining < 0 ? "#F0574B" : "#6B7482" }}>
-                  Due {item.dueDate} —{" "}
-                  {item.daysRemaining < 0
-                    ? `${Math.abs(item.daysRemaining)} day(s) overdue`
-                    : `${item.daysRemaining} day(s) remaining`}
-                </Text>
-              </td>
-            </tr>
-          </table>
+      <div style={{ fontFamily: FONT, fontSize: 15, color: V2.body, lineHeight: "24px", paddingTop: 12 }}>
+        Hi {recipientName} — the object{items.length === 1 ? " below is" : "s below are"} overdue or due soon on{" "}
+        <strong style={{ color: V2.strong }}>{projectName}</strong>.
+      </div>
+
+      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+        <tr>
+          <td height={24} style={{ fontSize: 1, lineHeight: "1px" }}>
+            &nbsp;
+          </td>
+        </tr>
+      </table>
+
+      <table
+        role="presentation"
+        cellPadding={0}
+        cellSpacing={0}
+        border={0}
+        width="100%"
+        style={{ border: `1px solid ${V2.border}`, borderRadius: 10 }}
+      >
+        {items.map((item, i) => (
+          <DeadlineRow key={`${item.wricefId ?? item.title}-${i}`} item={item} isLast={i === items.length - 1} />
         ))}
-      </Section>
+      </table>
 
-      <a href={`${appUrl}/my-work`} style={emailStyles.button}>
-        View in Objectra Labs
-      </a>
-    </EmailShell>
+      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+        <tr>
+          <td height={30} style={{ fontSize: 1, lineHeight: "1px" }}>
+            &nbsp;
+          </td>
+        </tr>
+      </table>
+
+      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+        <tr>
+          <td align="center" style={{ backgroundColor: V2.goldDark, borderRadius: 10 }}>
+            <a
+              href={`${appUrl}/my-work`}
+              style={{
+                display: "block",
+                padding: "14px 24px",
+                fontFamily: FONT,
+                fontSize: 15,
+                fontWeight: 700,
+                color: V2.headerBg,
+                textDecoration: "none",
+                lineHeight: "20px",
+              }}
+            >
+              View in Objectra Labs &nbsp;&nbsp;→
+            </a>
+          </td>
+        </tr>
+      </table>
+    </EmailShellV2>
   );
 }
