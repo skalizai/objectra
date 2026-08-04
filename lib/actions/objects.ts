@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getViewer } from "@/lib/auth/get-viewer";
-import { notifyObjectStatusChange } from "@/lib/email/notify-status-change";
+import { notifyObjectStatusChange, notifyObjectAssigneeChange } from "@/lib/email/notify-status-change";
 import type { AssignedRole, ObjectRow, ObjectStatus, ObjectType } from "@/lib/types/database";
 
 const AUDITED_FIELDS: (keyof ObjectRow)[] = [
@@ -191,6 +191,12 @@ export async function setObjectAssignee(
       .from("object_assignments")
       .insert({ object_id: objectId, resource_id: resourceId, assigned_role: role });
     if (error) return { error: error.message };
+
+    // Someone new is now on the hook for this object — if it's currently
+    // sitting in a status the org has flagged for email (Settings → Object
+    // statuses), let them (and the counterpart consultant) know, same as a
+    // status-change notification would. No-op if that status isn't flagged.
+    await notifyObjectAssigneeChange(objectId, projectId, role);
   }
 
   revalidatePath(`/projects/${projectId}`);

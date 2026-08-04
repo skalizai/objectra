@@ -11,10 +11,11 @@ type AssigneeRow = {
   resource: { full_name: string; email: string; email_notifications_enabled: boolean } | null;
 };
 
-/** Fires on a status change, gated entirely by admin-configured data rather
- * than a hard-coded list of statuses: Settings → Object statuses has an
- * "Email" checkbox per status (picklists.notify_email) — if the status
- * being moved into doesn't have it checked, this is a silent no-op.
+/** Shared by both notify entry points below: gated entirely by
+ * admin-configured data rather than a hard-coded list of statuses —
+ * Settings → Object statuses has an "Email" checkbox per status
+ * (picklists.notify_email); if the object's current status doesn't have it
+ * checked, this is a silent no-op.
  *
  * When it is checked, both the functional and technical consultants
  * currently assigned to the object are notified, except anyone whose own
@@ -22,12 +23,11 @@ type AssigneeRow = {
  * (resources.email_notifications_enabled) — a per-recipient opt-out.
  * Also silently no-ops if nobody eligible is assigned, or if Resend isn't
  * configured. A failed send is logged, never thrown — it should never
- * block the status update itself. */
-export async function notifyObjectStatusChange(
+ * block the caller's own update. */
+async function sendObjectNotification(
   objectId: string,
   projectId: string,
-  newStatus: string,
-  previousStatus: string | null,
+  opts: { heading: string; message: string; previousStatus: string | null },
 ) {
   if (!process.env.RESEND_API_KEY) return;
 
@@ -39,6 +39,7 @@ export async function notifyObjectStatusChange(
   ]);
   if (!object || !project) return;
   const objectRow = object as ObjectRow;
+  const status = objectRow.status;
 
   const [{ data: statusPicklist }, { data: orgStatuses }] = await Promise.all([
     admin
@@ -46,7 +47,7 @@ export async function notifyObjectStatusChange(
       .select("notify_email, color")
       .eq("org_id", project.org_id)
       .eq("type", "status")
-      .eq("value", newStatus)
+      .eq("value", status)
       .eq("is_active", true)
       .maybeSingle(),
     admin
@@ -93,9 +94,7 @@ export async function notifyObjectStatusChange(
   for (const email of toEmails) ccSet.delete(email); // never cc someone already in "to"
 
   const recipientName = eligible.length === 1 ? eligible[0].full_name : "team";
-  const heading = `Now in ${newStatus}`;
-  const message = `This object has moved to ${newStatus}.`;
-  const subject = `${heading} — ${objectRow.wricef_id ?? objectRow.title} (${project.name})`;
+  const subject = `${opts.heading} — ${objectRow.wricef_id ?? objectRow.title} (${project.name})`;
 
   try {
     const sendResult = await getResendClient().emails.send({
@@ -105,13 +104,13 @@ export async function notifyObjectStatusChange(
       subject,
       react: ObjectStatusEmail({
         recipientName,
-        heading,
-        message,
+        heading: opts.heading,
+        message: opts.message,
         objectTitle: objectRow.title,
         wricefId: objectRow.wricef_id,
         projectName: project.name,
-        status: newStatus,
-        previousStatus,
+        status,
+        previousStatus: opts.previousStatus,
         statusColor,
         pipelineStatuses,
         dueDate: objectRow.due_date,
@@ -140,4 +139,35 @@ export async function notifyObjectStatusChange(
       error: err instanceof Error ? err.message : "Unknown error",
     });
   }
+}
+
+/** Fires when an object's status changes — called from
+ * updateObjectByManager/memberUpdateObject. See sendObjectNotification for
+ * the gating/recipient rules. */
+export async function notifyObjectStatusChange(
+  objectId: string,
+  projectId: string,
+  newStatus: string,
+  previousStatus: string | null,
+) {
+  await sendObjectNotification(objectId, projectId, {
+    heading: `Now in ${newStatus}`,
+    message: `This object has moved to ${newStatus}.`,
+    previousStatus,
+  });
+}
+
+/** Fires when the functional or technical consultant on an object changes
+ * (setObjectAssignee) — someone new is now on the hook for an object that's
+ * sitting in a status the org has flagged for email (same notify_email
+ * check as a status change), so they should hear about it even though the
+ * status itself didn't move. See sendObjectNotification for the
+ * gating/recipient rules. */
+export async function notifyObjectAssigneeChange(objectId: string, projectId: string, role: AssignedRole) {
+  const roleLabel = role === "developer" ? "Technical" : "Functional";
+  await sendObjectNotification(objectId, projectId, {
+    heading: `${roleLabel} consultant updated`,
+    message: `The ${roleLabel.toLowerCase()} consultant on this object has changed.`,
+    previousStatus: null,
+  });
 }
