@@ -85,6 +85,7 @@ export async function getDashboardData(orgId: string): Promise<DashboardData> {
 
   let live = 0;
   let atRisk = 0;
+  let inFlight = 0;
   const statusCounts = new Map<ObjectStatus, number>();
   const moduleCounts = new Map<string, number>();
   const projectCounts = new Map<string, { total: number; live: number; atRisk: number }>();
@@ -96,6 +97,7 @@ export async function getDashboardData(orgId: string): Promise<DashboardData> {
     const overdue = isOverdue(obj.due_date, obj.status);
     if (done) live += 1;
     if (overdue) atRisk += 1;
+    if (obj.status === DEVELOPMENT_STATUS) inFlight += 1;
 
     statusCounts.set(obj.status, (statusCounts.get(obj.status) ?? 0) + 1);
 
@@ -138,7 +140,7 @@ export async function getDashboardData(orgId: string): Promise<DashboardData> {
     kpis: {
       total: objectList.length,
       live,
-      inFlight: objectList.length - live - atRisk,
+      inFlight,
       atRisk,
     },
     statusDistribution: Array.from(statusCounts.entries()).map(([status, count]) => ({
