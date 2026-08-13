@@ -41,6 +41,8 @@ export async function updateNotificationSettings(
       },
       extra_digest_emails: extraDigestEmails,
       digest_statuses: formData.getAll("digest_statuses").map(String),
+      ticket_emails_enabled: formData.get("ticket_emails_enabled") === "on",
+      sla_alerts_enabled: formData.get("sla_alerts_enabled") === "on",
     })
     .eq("project_id", projectId);
 

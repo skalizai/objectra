@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getPicklists } from "@/lib/data/picklists";
+import { getSupportSummary } from "@/lib/data/support";
 import { isDoneStatus } from "@/lib/object-meta";
-import type { ClientObjectRow, Project } from "@/lib/types/database";
+import type { ClientObjectRow, Project, SupportSummary } from "@/lib/types/database";
 
 export interface ClientProjectStatus {
   project: Project;
@@ -10,6 +11,7 @@ export interface ClientProjectStatus {
   live: number;
   percentComplete: number;
   waves: { wave: string; total: number; live: number }[];
+  supportSummary: SupportSummary | null;
 }
 
 /** RLS (project_role = 'client') scopes both queries to the caller's
@@ -35,6 +37,11 @@ export async function getClientProjectStatuses(orgId: string): Promise<ClientPro
 
   const objectList = (objects ?? []) as ClientObjectRow[];
 
+  const supportSummaries = await Promise.all(
+    projectList.map((p) => (p.phase === "hypercare" || p.phase === "support" ? getSupportSummary(p.id) : Promise.resolve(null))),
+  );
+  const supportSummaryById = new Map(projectList.map((p, i) => [p.id, supportSummaries[i]]));
+
   return projectList.map((project) => {
     const projectObjects = objectList.filter((o) => o.project_id === project.id);
     const live = projectObjects.filter((o) => isDoneStatus(o.status, statuses)).length;
@@ -57,6 +64,7 @@ export async function getClientProjectStatuses(orgId: string): Promise<ClientPro
       waves: Array.from(waveMap.entries())
         .map(([wave, v]) => ({ wave, ...v }))
         .sort((a, b) => a.wave.localeCompare(b.wave)),
+      supportSummary: supportSummaryById.get(project.id) ?? null,
     };
   });
 }

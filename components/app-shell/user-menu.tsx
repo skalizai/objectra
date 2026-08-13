@@ -12,6 +12,7 @@ const ROLE_LABEL: Record<ViewerRole, string> = {
   technical_lead: "Technical lead",
   member: "Member",
   client: "Client",
+  super_user: "Super user",
 };
 
 function initials(name: string) {

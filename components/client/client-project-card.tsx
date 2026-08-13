@@ -31,6 +31,37 @@ export function ClientProjectCard({ status, index }: { status: ClientProjectStat
         </div>
       </div>
 
+      {status.supportSummary && (
+        <div className="mt-5 border-t border-border pt-4">
+          <h3 className="mb-2 text-xs font-medium text-text-3">Support</h3>
+          <div className="grid grid-cols-4 gap-3 text-center">
+            <div>
+              <div className="font-display text-xl font-semibold">{status.supportSummary.open_count}</div>
+              <div className="text-[11px] text-text-3">Open</div>
+            </div>
+            <div>
+              <div
+                className="font-display text-xl font-semibold"
+                style={{ color: status.supportSummary.breaching_count > 0 ? "var(--status-overdue)" : undefined }}
+              >
+                {status.supportSummary.breaching_count}
+              </div>
+              <div className="text-[11px] text-text-3">Breaching SLA</div>
+            </div>
+            <div>
+              <div className="font-display text-xl font-semibold">{status.supportSummary.resolved_this_week}</div>
+              <div className="text-[11px] text-text-3">Resolved (wk)</div>
+            </div>
+            <div>
+              <div className="font-display text-xl font-semibold" style={{ color: "var(--status-live)" }}>
+                {status.supportSummary.sla_compliance_pct}%
+              </div>
+              <div className="text-[11px] text-text-3">SLA compliance</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {status.waves.length > 0 && (
         <div className="mt-5 space-y-3 border-t border-border pt-4">
           <h3 className="text-xs font-medium text-text-3">Milestones</h3>

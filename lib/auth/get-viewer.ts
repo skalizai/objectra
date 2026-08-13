@@ -11,7 +11,13 @@ export interface Viewer {
   projectRoles: Record<string, ProjectMemberRole>;
 }
 
-const ROLE_PRIORITY: ProjectMemberRole[] = ["project_manager", "technical_lead", "member", "client"];
+const ROLE_PRIORITY: ProjectMemberRole[] = [
+  "project_manager",
+  "technical_lead",
+  "member",
+  "super_user",
+  "client",
+];
 
 /** Returns null if there's no session or no profile yet (mid-signup). */
 export async function getViewer(): Promise<Viewer | null> {

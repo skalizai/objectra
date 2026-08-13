@@ -3,7 +3,14 @@
 // hand-written shape in sync if you do.
 
 export type ProjectStatus = "active" | "paused" | "closed";
-export type ProjectMemberRole = "project_manager" | "technical_lead" | "pmo" | "member" | "client";
+export type ProjectPhase = "implementation" | "hypercare" | "support";
+export type ProjectMemberRole =
+  | "project_manager"
+  | "technical_lead"
+  | "pmo"
+  | "member"
+  | "client"
+  | "super_user";
 export type ObjectType =
   | "Workflow"
   | "Report"
@@ -22,11 +29,45 @@ export type PicklistType = "module" | "complexity" | "status" | "company_code" |
 // maintain their own list (Functional, Technical, PMO, Project Manager, ...).
 export type ConsultantType = string;
 export type ResourceLocation = "onsite" | "offshore";
-export type InvitationRole = "org_admin" | "project_manager" | "technical_lead" | "pmo" | "member" | "client";
+export type InvitationRole =
+  | "org_admin"
+  | "project_manager"
+  | "technical_lead"
+  | "pmo"
+  | "member"
+  | "client"
+  | "super_user";
 export type InvitationStatus = "pending" | "accepted" | "expired";
-export type EmailType = "invite" | "deadline_alert" | "weekly_digest" | "status_change";
+export type EmailType =
+  | "invite"
+  | "deadline_alert"
+  | "weekly_digest"
+  | "status_change"
+  | "ticket_created"
+  | "ticket_assigned"
+  | "ticket_status"
+  | "sla_alert";
 export type EmailStatus = "sent" | "failed";
 export type DigestDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export type TicketCriticality = "P1_critical" | "P2_high" | "P3_medium" | "P4_low";
+export type TicketCategory = "incident" | "service_request" | "question";
+export type TicketStatus =
+  | "new"
+  | "assigned"
+  | "in_progress"
+  | "pending_user"
+  | "resolved"
+  | "closed"
+  | "reopened";
+export type TicketEventType =
+  | "created"
+  | "assigned"
+  | "status_change"
+  | "reassigned"
+  | "criticality_change"
+  | "sla_breach"
+  | "reopened";
 
 export interface Organization {
   id: string;
@@ -67,6 +108,8 @@ export interface Project {
   pm_id: string | null;
   company_code: string | null;
   stream: string | null;
+  phase: ProjectPhase;
+  go_live_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -258,8 +301,99 @@ export interface NotificationSettings {
   // currently in one of these statuses — empty means every status (no
   // filter), matching behavior before this column existed.
   digest_statuses: string[];
+  ticket_emails_enabled: boolean;
+  sla_alerts_enabled: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Post-Go-Live Support Ticketing (Hypercare) — sections 14-22 of
+// OBJECTRA_BUILD_PROMPT.md.
+// ---------------------------------------------------------------------------
+
+/** Module -> consultant routing for a project. primary/backup reference
+ * profiles directly (not resources) — a ticket needs someone who can
+ * actually log in and work it. */
+export interface SupportRouting {
+  id: string;
+  project_id: string;
+  module: string;
+  primary_consultant_id: string | null;
+  backup_consultant_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SlaPolicy {
+  id: string;
+  project_id: string;
+  criticality: TicketCriticality;
+  response_mins: number;
+  resolve_mins: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Ticket {
+  id: string;
+  project_id: string;
+  ticket_no: string | null;
+  module: string;
+  criticality: TicketCriticality;
+  subject: string;
+  description: string | null;
+  category: TicketCategory;
+  status: TicketStatus;
+  raised_by: string | null;
+  assigned_to: string | null;
+  related_object_id: string | null;
+  attachment_paths: string[];
+  resolution_note: string | null;
+  effort_hours: number | null;
+  first_response_at: string | null;
+  resolved_at: string | null;
+  closed_at: string | null;
+  reopen_count: number;
+  sla_due_at: string | null;
+  sla_breached: boolean;
+  sla_breach_alerted_at: string | null;
+  sla_warning_alerted_at: string | null;
+  external_ref_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketComment {
+  id: string;
+  ticket_id: string;
+  author_id: string | null;
+  body: string;
+  is_internal: boolean;
+  attachment_paths: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketEvent {
+  id: string;
+  ticket_id: string;
+  event: TicketEventType;
+  old_value: string | null;
+  new_value: string | null;
+  actor_id: string | null;
+  occurred_at: string;
+}
+
+/** Counts-only rollup returned by the get_support_summary() RPC — backs the
+ * client read-only support summary, since clients have no row-level
+ * SELECT on tickets. */
+export interface SupportSummary {
+  open_count: number;
+  breaching_count: number;
+  resolved_this_week: number;
+  sla_compliance_pct: number;
 }
 
 // Minimal Database shape for @supabase/ssr's generic client typing.

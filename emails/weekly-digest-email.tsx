@@ -1,8 +1,18 @@
 import { format } from "date-fns";
 import { EmailShellV2, StatusBadge, V2 } from "./components/shell-v2";
+import { CRITICALITY_COLOR, CRITICALITY_LABEL } from "./components/criticality";
 
 const FONT = "Helvetica, Arial, sans-serif";
 const OVERDUE = "#c0392b";
+
+/** Added when the project's phase is hypercare/support (section 18). */
+export interface WeeklyDigestSupportSection {
+  openedThisWeek: number;
+  resolvedThisWeek: number;
+  openByCriticality: { criticality: string; count: number }[];
+  slaCompliancePct: number;
+  oldestOpenTicket: { ticketNo: string; subject: string; daysOpen: number } | null;
+}
 
 export interface DigestObjectItem {
   title: string;
@@ -26,6 +36,7 @@ export interface WeeklyDigestEmailProps {
   percentComplete: number;
   movedThisWeek: DigestObjectItem[];
   overdue: DigestObjectItem[];
+  support?: WeeklyDigestSupportSection | null;
   appUrl: string;
 }
 
@@ -112,6 +123,7 @@ export default function WeeklyDigestEmail({
     },
   ],
   overdue = [],
+  support = null,
   appUrl = "https://objectra.app",
 }: WeeklyDigestEmailProps) {
   return (
@@ -283,6 +295,73 @@ export default function WeeklyDigestEmail({
                 &nbsp;
               </td>
             </tr>
+          </table>
+        </>
+      )}
+
+      {support && (
+        <>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 1.5,
+              textTransform: "uppercase" as const,
+              color: V2.muted,
+              lineHeight: "16px",
+              paddingBottom: 12,
+            }}
+          >
+            Support this week
+          </div>
+          <table
+            role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%"
+            style={{ border: `1px solid ${V2.border}`, borderRadius: 10 }}
+          >
+            <tr>
+              <td style={{ padding: "18px 24px" }}>
+                <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+                  <tr>
+                    <td width="25%" align="center" style={{ borderRight: `1px solid ${V2.borderLight}` }}>
+                      <div className="darktext" style={{ fontFamily: FONT, fontSize: 22, fontWeight: 700, color: V2.heading, lineHeight: "28px" }}>{support.openedThisWeek}</div>
+                      <div style={{ fontFamily: FONT, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "14px", paddingTop: 2 }}>Opened</div>
+                    </td>
+                    <td width="25%" align="center" style={{ borderRight: `1px solid ${V2.borderLight}` }}>
+                      <div style={{ fontFamily: FONT, fontSize: 22, fontWeight: 700, color: V2.live, lineHeight: "28px" }}>{support.resolvedThisWeek}</div>
+                      <div style={{ fontFamily: FONT, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "14px", paddingTop: 2 }}>Resolved</div>
+                    </td>
+                    <td width="25%" align="center" style={{ borderRight: `1px solid ${V2.borderLight}` }}>
+                      <div className="darktext" style={{ fontFamily: FONT, fontSize: 22, fontWeight: 700, color: support.slaCompliancePct < 90 ? OVERDUE : V2.heading, lineHeight: "28px" }}>{support.slaCompliancePct}%</div>
+                      <div style={{ fontFamily: FONT, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "14px", paddingTop: 2 }}>SLA compliance</div>
+                    </td>
+                    <td width="25%" align="center">
+                      <div className="darktext" style={{ fontFamily: FONT, fontSize: 22, fontWeight: 700, color: V2.heading, lineHeight: "28px" }}>{support.oldestOpenTicket?.daysOpen ?? 0}</div>
+                      <div style={{ fontFamily: FONT, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "14px", paddingTop: 2 }}>Oldest open (d)</div>
+                    </td>
+                  </tr>
+                </table>
+                {support.openByCriticality.length > 0 && (
+                  <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%" style={{ marginTop: 16 }}>
+                    <tr>
+                      {support.openByCriticality.map((c) => (
+                        <td key={c.criticality} style={{ paddingRight: 8 }}>
+                          <StatusBadge label={`${CRITICALITY_LABEL[c.criticality] ?? c.criticality}: ${c.count}`} color={CRITICALITY_COLOR[c.criticality] ?? V2.muted} />
+                        </td>
+                      ))}
+                    </tr>
+                  </table>
+                )}
+                {support.oldestOpenTicket && (
+                  <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, lineHeight: "18px", paddingTop: 14 }}>
+                    Oldest open: <strong style={{ color: V2.body }}>{support.oldestOpenTicket.ticketNo}</strong> — {support.oldestOpenTicket.subject}
+                  </div>
+                )}
+              </td>
+            </tr>
+          </table>
+          <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+            <tr><td height={30} style={{ fontSize: 1, lineHeight: "1px" }}>&nbsp;</td></tr>
           </table>
         </>
       )}

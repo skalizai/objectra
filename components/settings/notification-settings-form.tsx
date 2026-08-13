@@ -9,6 +9,7 @@ import {
   updateNotificationSettings,
   type SimpleActionState,
 } from "@/lib/actions/settings";
+import { sendTestTicketEmail } from "@/lib/actions/support-settings";
 import type { NotificationSettings, Picklist } from "@/lib/types/database";
 
 const initialState: SimpleActionState = { error: null, success: false };
@@ -26,6 +27,8 @@ export function NotificationSettingsForm({
   const [state, formAction, pending] = useActionState(boundAction, initialState);
   const [testState, setTestState] = useState<{ error: string | null; success: boolean } | null>(null);
   const [isSendingTest, startTestTransition] = useTransition();
+  const [ticketTestState, setTicketTestState] = useState<{ error: string | null; success: boolean } | null>(null);
+  const [isSendingTicketTest, startTicketTestTransition] = useTransition();
   const [clientsChecked, setClientsChecked] = useState(settings.digest_recipients?.clients ?? true);
 
   return (
@@ -63,6 +66,17 @@ export function NotificationSettingsForm({
             className="h-9 w-24 rounded-control border border-border-2 bg-surface-2 px-2.5 text-sm text-text focus:border-brass focus-visible:outline-none"
           />
         </div>
+
+        <hr className="border-border" />
+
+        <label className="flex items-center gap-2 text-sm text-text-2">
+          <input type="checkbox" name="ticket_emails_enabled" defaultChecked={settings.ticket_emails_enabled ?? true} />
+          Ticket emails enabled (created, assigned, status changes)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-text-2">
+          <input type="checkbox" name="sla_alerts_enabled" defaultChecked={settings.sla_alerts_enabled ?? true} />
+          SLA breach/warning alerts enabled
+        </label>
 
         <hr className="border-border" />
 
@@ -162,11 +176,29 @@ export function NotificationSettingsForm({
           >
             {isSendingTest ? "Sending…" : "Send test digest"}
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isSendingTicketTest}
+            onClick={() =>
+              startTicketTestTransition(async () => {
+                setTicketTestState(await sendTestTicketEmail(projectId));
+              })
+            }
+          >
+            {isSendingTicketTest ? "Sending…" : "Send test ticket email"}
+          </Button>
         </div>
 
         {testState && (
           <p className="text-xs" style={{ color: testState.success ? "var(--status-live)" : "var(--status-overdue)" }}>
             {testState.success ? "Test digest sent." : testState.error}
+          </p>
+        )}
+        {ticketTestState && (
+          <p className="text-xs" style={{ color: ticketTestState.success ? "var(--status-live)" : "var(--status-overdue)" }}>
+            {ticketTestState.success ? "Test ticket email sent." : ticketTestState.error}
           </p>
         )}
       </form>

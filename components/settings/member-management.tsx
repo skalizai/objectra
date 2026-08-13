@@ -11,6 +11,7 @@ const ROLE_LABEL: Record<ProjectMemberRole, string> = {
   pmo: "PMO",
   member: "Member",
   client: "Client",
+  super_user: "Super user",
 };
 
 const selectClass =

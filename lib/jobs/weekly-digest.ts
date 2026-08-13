@@ -2,8 +2,8 @@ import { format } from "date-fns";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient, EMAIL_FROM } from "@/lib/email/resend";
 import { isDoneStatus, isOverdue, resolveStatusColor } from "@/lib/object-meta";
-import WeeklyDigestEmail, { type DigestObjectItem } from "@/emails/weekly-digest-email";
-import type { DigestDay, ObjectRow, Picklist, Project } from "@/lib/types/database";
+import WeeklyDigestEmail, { type DigestObjectItem, type WeeklyDigestSupportSection } from "@/emails/weekly-digest-email";
+import type { DigestDay, ObjectRow, Picklist, Project, Ticket } from "@/lib/types/database";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 const DAY_KEYS: DigestDay[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -63,6 +63,42 @@ function sevenDaysAgoIso() {
   const d = new Date();
   d.setDate(d.getDate() - 7);
   return d.toISOString();
+}
+
+/** Section 18: added to the digest when a project is in hypercare/support. */
+async function getSupportSection(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+): Promise<WeeklyDigestSupportSection> {
+  const since = sevenDaysAgoIso();
+  const { data: tickets } = await supabase.from("tickets").select("*").eq("project_id", projectId);
+  const allTickets = (tickets ?? []) as Ticket[];
+
+  const openedThisWeek = allTickets.filter((t) => t.created_at >= since).length;
+  const resolvedRows = allTickets.filter((t) => t.resolved_at && t.resolved_at >= since);
+  const resolvedThisWeek = resolvedRows.length;
+  const slaCompliancePct =
+    resolvedThisWeek === 0
+      ? 100
+      : Math.round((resolvedRows.filter((t) => !t.sla_breached).length / resolvedThisWeek) * 100);
+
+  const openTickets = allTickets.filter((t) => !["resolved", "closed"].includes(t.status));
+  const criticalityCounts = new Map<string, number>();
+  for (const t of openTickets) criticalityCounts.set(t.criticality, (criticalityCounts.get(t.criticality) ?? 0) + 1);
+  const openByCriticality = Array.from(criticalityCounts.entries())
+    .map(([criticality, count]) => ({ criticality, count }))
+    .sort((a, b) => a.criticality.localeCompare(b.criticality));
+
+  const oldest = openTickets.sort((a, b) => a.created_at.localeCompare(b.created_at))[0] ?? null;
+  const oldestOpenTicket = oldest
+    ? {
+        ticketNo: oldest.ticket_no ?? "—",
+        subject: oldest.subject,
+        daysOpen: Math.max(0, Math.round((Date.now() - new Date(oldest.created_at).getTime()) / 86400000)),
+      }
+    : null;
+
+  return { openedThisWeek, resolvedThisWeek, openByCriticality, slaCompliancePct, oldestOpenTicket };
 }
 
 export interface WeeklyDigestResult {
@@ -211,6 +247,10 @@ export async function runWeeklyDigest(options?: {
     const subject = `Weekly status — ${project.name}: ${percentComplete}% complete`;
     const weekStart = format(new Date(sevenDaysAgoIso()), "MMM d");
     const weekEnd = format(new Date(), "MMM d, yyyy");
+    const support =
+      project.phase === "hypercare" || project.phase === "support"
+        ? await getSupportSection(supabase, project.id)
+        : null;
 
     for (const recipient of allRecipients) {
       if (alreadySent.has(recipient.email)) {
@@ -237,6 +277,7 @@ export async function runWeeklyDigest(options?: {
             overdue: atRisk
               .slice(0, 10)
               .map((o) => ({ ...toDigestItem(o, assigneeMap, statuses), dueDate: o.due_date })),
+            support,
             appUrl: APP_URL,
           }),
         });

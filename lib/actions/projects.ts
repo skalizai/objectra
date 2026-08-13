@@ -90,6 +90,17 @@ export async function createProject(
 
   await supabase.from("notification_settings").insert({ project_id: project.id });
 
+  // Default SLA targets (section 16 of the ticketing addendum) — seeded
+  // from app code the same way notification_settings is, so a project can
+  // still be created without them and an admin can freely edit/replace
+  // them later from Settings -> Support.
+  await supabase.from("sla_policies").insert([
+    { project_id: project.id, criticality: "P1_critical", response_mins: 60, resolve_mins: 240 },
+    { project_id: project.id, criticality: "P2_high", response_mins: 240, resolve_mins: 1440 },
+    { project_id: project.id, criticality: "P3_medium", response_mins: 1440, resolve_mins: 4320 },
+    { project_id: project.id, criticality: "P4_low", response_mins: 2880, resolve_mins: 10080 },
+  ]);
+
   revalidatePath("/projects");
   // /projects/[id] renders the Overview page directly (no server redirect),
   // so it's safe to land here — see the comment on ProjectCard's Link.

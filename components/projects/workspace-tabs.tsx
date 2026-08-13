@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-export function WorkspaceTabs({ projectId }: { projectId: string }) {
+export function WorkspaceTabs({ projectId, showSupport = false }: { projectId: string; showSupport?: boolean }) {
   const pathname = usePathname();
   const tabs = [
     { href: `/projects/${projectId}`, label: "Overview", exact: true },
     { href: `/projects/${projectId}/objects`, label: "Objects register" },
     { href: `/projects/${projectId}/pipeline`, label: "Pipeline board" },
     { href: `/projects/${projectId}/assignments`, label: "Assignments" },
+    ...(showSupport ? [{ href: `/projects/${projectId}/support`, label: "Support" }] : []),
   ];
 
   return (

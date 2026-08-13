@@ -21,6 +21,7 @@ export default async function ProjectWorkspaceLayout({
   if (!project) notFound();
 
   const canEdit = viewer?.role === "org_admin" || isProjectEditorRole(viewer?.projectRoles[id]);
+  const showSupport = canEdit || project.phase === "hypercare" || project.phase === "support";
 
   let pmOptions: { id: string; full_name: string }[] = [];
   if (canEdit && viewer) {
@@ -57,7 +58,7 @@ export default async function ProjectWorkspaceLayout({
         )}
       </div>
 
-      <WorkspaceTabs projectId={project.id} />
+      <WorkspaceTabs projectId={project.id} showSupport={showSupport} />
 
       {children}
     </div>

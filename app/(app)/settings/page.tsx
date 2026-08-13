@@ -11,7 +11,11 @@ import { OrgProfileForm } from "@/components/settings/org-profile-form";
 import { MemberManagement } from "@/components/settings/member-management";
 import { PicklistManager } from "@/components/settings/picklist-manager";
 import { MyProfileForm } from "@/components/settings/my-profile-form";
-import type { NotificationSettings } from "@/lib/types/database";
+import { ProjectPhaseToggle } from "@/components/settings/project-phase-toggle";
+import { SupportRoutingForm } from "@/components/settings/support-routing-form";
+import { SlaPolicyForm } from "@/components/settings/sla-policy-form";
+import { getSupportRouting, getSlaPolicies } from "@/lib/data/support";
+import type { NotificationSettings, Project } from "@/lib/types/database";
 import type { MemberWithMemberships } from "@/lib/data/members";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -34,13 +38,30 @@ export default async function SettingsPage({
   const supabase = await createClient();
 
   let settings: NotificationSettings | null = null;
+  let selectedProject: Project | null = null;
+  let supportRouting: Awaited<ReturnType<typeof getSupportRouting>> = [];
+  let slaPolicies: Awaited<ReturnType<typeof getSlaPolicies>> = [];
+  let consultantOptions: { id: string; full_name: string }[] = [];
   if (selectedProjectId) {
-    const { data } = await supabase
-      .from("notification_settings")
-      .select("*")
-      .eq("project_id", selectedProjectId)
-      .maybeSingle();
+    const [{ data }, { data: projectRow }, routing, policies, { data: memberRows }] = await Promise.all([
+      supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
+      supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
+      getSupportRouting(selectedProjectId),
+      getSlaPolicies(selectedProjectId),
+      supabase
+        .from("project_members")
+        .select("profile:profiles(id, full_name)")
+        .eq("project_id", selectedProjectId)
+        .eq("is_active", true)
+        .in("role", ["member", "technical_lead", "project_manager"]),
+    ]);
     settings = data;
+    selectedProject = projectRow;
+    supportRouting = routing;
+    slaPolicies = policies;
+    consultantOptions = ((memberRows ?? []) as unknown as { profile: { id: string; full_name: string } | null }[])
+      .map((m) => m.profile)
+      .filter((p): p is { id: string; full_name: string } => !!p);
   }
 
   // Needed for the notification form's "statuses to include" checklist
@@ -83,6 +104,24 @@ export default async function SettingsPage({
               settings={settings}
               statuses={picklists.statuses}
             />
+          )}
+          {selectedProject && (
+            <>
+              <ProjectPhaseToggle
+                projectId={selectedProjectId}
+                phase={selectedProject.phase}
+                goLiveDate={selectedProject.go_live_date}
+              />
+              <div className="grid gap-5 lg:grid-cols-2">
+                <SupportRoutingForm
+                  projectId={selectedProjectId}
+                  routing={supportRouting}
+                  modules={picklists.modules.map((m) => m.value)}
+                  consultantOptions={consultantOptions}
+                />
+                <SlaPolicyForm projectId={selectedProjectId} policies={slaPolicies} />
+              </div>
+            </>
           )}
         </div>
       )}

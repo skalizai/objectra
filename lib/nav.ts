@@ -7,9 +7,16 @@ import {
   IconListCheck,
   IconEye,
   IconSitemap,
+  IconTicket,
 } from "@tabler/icons-react";
 
-export type ViewerRole = "org_admin" | "project_manager" | "technical_lead" | "member" | "client";
+export type ViewerRole =
+  | "org_admin"
+  | "project_manager"
+  | "technical_lead"
+  | "member"
+  | "client"
+  | "super_user";
 
 export interface NavItem {
   href: string;
@@ -24,6 +31,7 @@ const SETTINGS: NavItem = { href: "/settings", label: "Settings", icon: IconSett
 const ARCHITECTURE: NavItem = { href: "/architecture", label: "Architecture", icon: IconSitemap };
 const MY_WORK: NavItem = { href: "/my-work", label: "My work", icon: IconListCheck };
 const CLIENT_VIEW: NavItem = { href: "/client", label: "Project status", icon: IconEye };
+const MY_TICKETS: NavItem = { href: "/my-tickets", label: "My tickets", icon: IconTicket };
 
 export const NAV_BY_ROLE: Record<ViewerRole, NavItem[]> = {
   org_admin: [DASHBOARD, PROJECTS, RESOURCES, SETTINGS, ARCHITECTURE],
@@ -31,4 +39,5 @@ export const NAV_BY_ROLE: Record<ViewerRole, NavItem[]> = {
   technical_lead: [DASHBOARD, PROJECTS, RESOURCES, SETTINGS, ARCHITECTURE],
   member: [MY_WORK],
   client: [CLIENT_VIEW],
+  super_user: [MY_TICKETS],
 };

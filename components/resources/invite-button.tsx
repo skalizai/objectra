@@ -82,6 +82,7 @@ export function InviteButton({
                 <option value="pmo">PMO</option>
                 <option value="member">Member</option>
                 <option value="client">Client</option>
+                <option value="super_user">Super user</option>
               </select>
             </div>
             <div>

@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/jobs/deadline-scan", "schedule": "0 7 * * *" },
-    { "path": "/api/jobs/weekly-digest", "schedule": "0 8 * * *" }
+    { "path": "/api/jobs/weekly-digest", "schedule": "0 8 * * *" },
+    { "path": "/api/jobs/sla-scan", "schedule": "*/30 * * * *" }
   ]
 }
