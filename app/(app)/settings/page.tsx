@@ -50,7 +50,7 @@ export default async function SettingsPage({
       getSlaPolicies(selectedProjectId),
       supabase
         .from("project_members")
-        .select("profile:profiles(id, full_name, primary_module)")
+        .select("profile:profiles(id, full_name)")
         .eq("project_id", selectedProjectId)
         .eq("is_active", true)
         .in("role", ["member", "technical_lead", "project_manager"]),
@@ -59,13 +59,29 @@ export default async function SettingsPage({
     selectedProject = projectRow;
     supportRouting = routing;
     slaPolicies = policies;
-    consultantOptions = (
-      (memberRows ?? []) as unknown as {
-        profile: { id: string; full_name: string; primary_module: string | null } | null;
-      }[]
-    )
+
+    const profiles = ((memberRows ?? []) as unknown as { profile: { id: string; full_name: string } | null }[])
       .map((m) => m.profile)
-      .filter((p): p is { id: string; full_name: string; primary_module: string | null } => !!p);
+      .filter((p): p is { id: string; full_name: string } => !!p);
+
+    // primary_module is edited from the Resources page, which writes to
+    // resources.primary_module — not profiles.primary_module (a separate,
+    // never-updated-by-that-UI column) — so it has to be resolved via
+    // resources.profile_id, not read straight off profiles.
+    const { data: resourceRows } = profiles.length
+      ? await supabase
+          .from("resources")
+          .select("profile_id, primary_module")
+          .in(
+            "profile_id",
+            profiles.map((p) => p.id),
+          )
+      : { data: [] as { profile_id: string | null; primary_module: string | null }[] };
+    const moduleByProfileId = new Map(
+      (resourceRows ?? []).filter((r) => r.profile_id).map((r) => [r.profile_id as string, r.primary_module]),
+    );
+
+    consultantOptions = profiles.map((p) => ({ ...p, primary_module: moduleByProfileId.get(p.id) ?? null }));
   }
 
   // Needed for the notification form's "statuses to include" checklist
