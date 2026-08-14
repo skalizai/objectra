@@ -18,27 +18,27 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
   const canManage = viewer.role === "org_admin" || isProjectEditorRole(viewer.projectRoles[id]);
 
   const supabase = await createClient();
-  const [dashboard, tickets, picklists, { data: project }, { data: memberRows }] = await Promise.all([
+  const [dashboard, tickets, picklists, { data: project }, { data: resourceRows }] = await Promise.all([
     getSupportDashboardData(id),
     getProjectTickets(id),
     getPicklists(viewer.profile.org_id),
     supabase.from("projects").select("phase").eq("id", id).maybeSingle(),
+    // Reassign offers the full org roster, invited or not (section 24) —
+    // reassignTicket() itself resolves resource -> profile and returns a
+    // clear message if that resource hasn't accepted their invite yet,
+    // rather than restricting the picker to already-invited project
+    // members the way it used to.
     supabase
-      .from("project_members")
-      .select("profile:profiles(id, full_name)")
-      .eq("project_id", id)
-      .eq("is_active", true)
-      .in("role", ["member", "technical_lead", "project_manager"]),
+      .from("resources")
+      .select("id, full_name, profile_id")
+      .eq("org_id", viewer.profile.org_id)
+      .order("full_name"),
   ]);
 
   const ticketsEnabled = project?.phase === "hypercare" || project?.phase === "support";
   const canRaise = ticketsEnabled && (canManage || viewer.projectRoles[id] === "super_user");
 
-  const consultantOptions = (
-    (memberRows ?? []) as unknown as { profile: { id: string; full_name: string } | null }[]
-  )
-    .map((m) => m.profile)
-    .filter((p): p is { id: string; full_name: string } => !!p);
+  const consultantOptions = resourceRows ?? [];
 
   return (
     <div className="space-y-6 pt-5">

@@ -34,22 +34,32 @@ export function TicketsTable({
   tickets: TicketWithNames[];
   viewerId: string;
   canManage: boolean;
-  consultantOptions: { id: string; full_name: string }[];
+  consultantOptions: { id: string; full_name: string; profile_id: string | null }[];
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all");
   const [criticalityFilter, setCriticalityFilter] = useState<TicketCriticality | "all">("all");
   const [selected, setSelected] = useState<TicketWithNames | null>(null);
 
+  // Copied into local state so a delete can remove the row immediately —
+  // resynced whenever the parent re-renders with a genuinely new list, same
+  // pattern as ResourcesTable.
+  const [rows, setRows] = useState(tickets);
+  const [prevTickets, setPrevTickets] = useState(tickets);
+  if (tickets !== prevTickets) {
+    setPrevTickets(tickets);
+    setRows(tickets);
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return tickets.filter((t) => {
+    return rows.filter((t) => {
       if (q && !`${t.subject} ${t.ticket_no ?? ""} ${t.module}`.toLowerCase().includes(q)) return false;
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (criticalityFilter !== "all" && t.criticality !== criticalityFilter) return false;
       return true;
     });
-  }, [tickets, search, statusFilter, criticalityFilter]);
+  }, [rows, search, statusFilter, criticalityFilter]);
 
   return (
     <div>
@@ -129,6 +139,7 @@ export function TicketsTable({
         canManage={canManage}
         consultantOptions={consultantOptions}
         onClose={() => setSelected(null)}
+        onDeleted={() => setRows((prev) => prev.filter((t) => t.id !== selected?.id))}
       />
     </div>
   );

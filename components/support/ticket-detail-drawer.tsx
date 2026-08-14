@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CriticalityPill } from "@/components/support/criticality-pill";
 import { TicketGlyph } from "@/components/support/ticket-glyph";
+import { DeleteTicketButton } from "@/components/support/delete-ticket-button";
 import {
   addTicketComment,
   consultantUpdateTicket,
@@ -40,12 +41,14 @@ function TicketDetailBody({
   viewerId,
   canManage,
   consultantOptions,
+  onDeleted,
 }: {
   ticket: TicketWithNames;
   projectId: string;
   viewerId: string;
   canManage: boolean;
-  consultantOptions: { id: string; full_name: string }[];
+  consultantOptions: { id: string; full_name: string; profile_id: string | null }[];
+  onDeleted: () => void;
 }) {
   const [comments, setComments] = useState<TicketCommentWithAuthor[]>([]);
   const [events, setEvents] = useState<TicketEventWithActor[]>([]);
@@ -53,6 +56,14 @@ function TicketDetailBody({
   const [isInternal, setIsInternal] = useState(false);
   const [reopenComment, setReopenComment] = useState("");
   const [pending, setPending] = useState(false);
+  const [reassignError, setReassignError] = useState<string | null>(null);
+
+  // The reassign picker offers every resource (invited or not — section
+  // 24), but the select's value has to be keyed by something stable to
+  // show who's *currently* assigned, and ticket.assigned_to is a profiles
+  // id while the options list is keyed by resources id — resolve the
+  // match via profile_id.
+  const currentResourceId = consultantOptions.find((c) => c.profile_id === ticket.assigned_to)?.id ?? "";
 
   const isAssignee = ticket.assigned_to === viewerId;
   const isRaiser = ticket.raised_by === viewerId;
@@ -135,14 +146,22 @@ function TicketDetailBody({
             <Label>Reassign</Label>
             <select
               className={selectClass}
-              defaultValue={ticket.assigned_to ?? ""}
-              onChange={(e) => e.target.value && void reassignTicket(ticket.id, projectId, e.target.value)}
+              defaultValue={currentResourceId}
+              onChange={async (e) => {
+                if (!e.target.value) return;
+                setReassignError(null);
+                const result = await reassignTicket(ticket.id, projectId, e.target.value);
+                if (result.error) setReassignError(result.error);
+              }}
             >
               <option value="">Unassigned</option>
               {consultantOptions.map((c) => (
                 <option key={c.id} value={c.id}>{c.full_name}</option>
               ))}
             </select>
+            {reassignError && (
+              <p className="mt-1 text-xs" style={{ color: "var(--status-overdue)" }}>{reassignError}</p>
+            )}
           </div>
           <div>
             <Label>Criticality</Label>
@@ -265,6 +284,12 @@ function TicketDetailBody({
           </div>
         </div>
       </div>
+
+      {canManage && (
+        <div className="border-t border-border pt-4">
+          <DeleteTicketButton ticketId={ticket.id} ticketNo={ticket.ticket_no ?? ticket.subject} projectId={projectId} onDeleted={onDeleted} />
+        </div>
+      )}
     </div>
   );
 }
@@ -276,13 +301,17 @@ export function TicketDetailDrawer({
   canManage,
   consultantOptions,
   onClose,
+  onDeleted,
 }: {
   ticket: TicketWithNames | null;
   projectId: string;
   viewerId: string;
   canManage: boolean;
-  consultantOptions: { id: string; full_name: string }[];
+  consultantOptions: { id: string; full_name: string; profile_id: string | null }[];
   onClose: () => void;
+  /** Called after a successful delete, in addition to onClose — lets the
+   * parent (e.g. TicketsTable) drop the row from its own list. */
+  onDeleted?: () => void;
 }) {
   return (
     <Drawer open={!!ticket} onClose={onClose} title={ticket ? `${ticket.ticket_no ?? ""} — ${ticket.subject}` : ""} width={480}>
@@ -294,6 +323,10 @@ export function TicketDetailDrawer({
           viewerId={viewerId}
           canManage={canManage}
           consultantOptions={consultantOptions}
+          onDeleted={() => {
+            onDeleted?.();
+            onClose();
+          }}
         />
       )}
     </Drawer>

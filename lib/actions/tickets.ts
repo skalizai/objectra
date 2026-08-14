@@ -212,15 +212,47 @@ export async function raiserCloseOrReopenTicket(
   return { error: null };
 }
 
-/** PM/technical_lead only, per the tickets_update RLS policy — reassign to
- * a different consultant. */
-export async function reassignTicket(ticketId: string, projectId: string, newAssigneeId: string) {
+/** PM/technical_lead/org_admin only, per the tickets_update RLS policy —
+ * reassign to a different consultant. The picker offers the full org
+ * resource roster (not just already-invited project members, same as
+ * ticket routing — section 24), but tickets.assigned_to still has to be a
+ * profiles id (someone who can actually log in and work it), so this
+ * resolves resourceId -> resources.profile_id itself and returns a plain
+ * message instead of silently no-oping if that resource hasn't accepted
+ * their invite yet. */
+export async function reassignTicket(ticketId: string, projectId: string, resourceId: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("tickets").update({ assigned_to: newAssigneeId }).eq("id", ticketId);
+
+  const { data: resource } = await supabase
+    .from("resources")
+    .select("full_name, profile_id")
+    .eq("id", resourceId)
+    .maybeSingle();
+  if (!resource) return { error: "Resource not found." };
+  if (!resource.profile_id) {
+    return { error: `${resource.full_name} hasn't accepted their invite yet — invite them from Resources first, then you can reassign to them.` };
+  }
+
+  const { error } = await supabase.from("tickets").update({ assigned_to: resource.profile_id }).eq("id", ticketId);
   if (error) return { error: error.message };
 
   await notifyTicketAssignment(ticketId);
   revalidatePath(`/projects/${projectId}/support`);
+  return { error: null };
+}
+
+/** PM/technical_lead/org_admin only, per the new tickets_delete RLS policy
+ * (0033) — tickets had no DELETE policy at all before, so this was
+ * previously impossible for anyone. Comments/events cascade automatically
+ * (both reference ticket_id on delete cascade). */
+export async function deleteTicket(ticketId: string, projectId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("tickets").delete().eq("id", ticketId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/projects/${projectId}/support`);
+  revalidatePath("/my-tickets");
+  revalidatePath("/my-work");
   return { error: null };
 }
 
