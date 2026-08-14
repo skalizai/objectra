@@ -57,13 +57,23 @@ export function SupportRoutingForm({
     return consultantOptions.find((c) => c.id === id)?.full_name ?? "—";
   }
 
-  // Only offer consultants tagged with the module being routed — a
-  // functional/technical resource's primary_module (Settings → Resources)
-  // is what auto-routing is actually mapping against, so an SD consultant
-  // showing up as a candidate for an MM rule would just be noise.
-  const eligibleConsultants = newModule
-    ? consultantOptions.filter((c) => (c.primary_module ?? "").trim().toLowerCase() === newModule.trim().toLowerCase())
-    : [];
+  // Every active project member is always selectable — primary_module
+  // tagging (Settings → Resources) can be missing or point at a
+  // disconnected roster row, and a hard filter on it turns that into a
+  // dead-end empty dropdown. Instead, sort whoever matches the chosen
+  // module to the top and label their tag, so the right pick is easy to
+  // find without ever blocking on imperfect tagging.
+  const sortedConsultants = [...consultantOptions].sort((a, b) => {
+    if (!newModule) return a.full_name.localeCompare(b.full_name);
+    const aMatch = (a.primary_module ?? "").trim().toLowerCase() === newModule.trim().toLowerCase();
+    const bMatch = (b.primary_module ?? "").trim().toLowerCase() === newModule.trim().toLowerCase();
+    if (aMatch !== bMatch) return aMatch ? -1 : 1;
+    return a.full_name.localeCompare(b.full_name);
+  });
+
+  function consultantLabel(c: ConsultantOption) {
+    return c.primary_module ? `${c.full_name} — ${c.primary_module}` : c.full_name;
+  }
 
   function handleModuleChange(module: string) {
     setNewModule(module);
@@ -100,31 +110,22 @@ export function SupportRoutingForm({
           <option value="">Module…</option>
           {modules.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
-        <select
-          className={selectClass}
-          value={newPrimary}
-          onChange={(e) => setNewPrimary(e.target.value)}
-          disabled={!newModule}
-        >
+        <select className={selectClass} value={newPrimary} onChange={(e) => setNewPrimary(e.target.value)} disabled={!newModule}>
           <option value="">{newModule ? "Primary…" : "Pick a module first"}</option>
-          {eligibleConsultants.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+          {sortedConsultants.map((c) => <option key={c.id} value={c.id}>{consultantLabel(c)}</option>)}
         </select>
-        <select
-          className={selectClass}
-          value={newBackup}
-          onChange={(e) => setNewBackup(e.target.value)}
-          disabled={!newModule}
-        >
+        <select className={selectClass} value={newBackup} onChange={(e) => setNewBackup(e.target.value)} disabled={!newModule}>
           <option value="">{newModule ? "Backup (optional)…" : "Pick a module first"}</option>
-          {eligibleConsultants.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+          {sortedConsultants.map((c) => <option key={c.id} value={c.id}>{consultantLabel(c)}</option>)}
         </select>
         <Button size="sm" variant="outline" onClick={addRow} disabled={!newModule || !newPrimary}>
           Add rule
         </Button>
       </div>
-      {newModule && eligibleConsultants.length === 0 && (
+      {newModule && !sortedConsultants.some((c) => (c.primary_module ?? "").trim().toLowerCase() === newModule.trim().toLowerCase()) && (
         <p className="mt-2 text-xs text-text-3">
-          No project member is tagged with primary module &quot;{newModule}&quot; yet — set it from Resources.
+          Nobody on this project is tagged with primary module &quot;{newModule}&quot; in Resources — everyone&apos;s
+          still listed below, pick manually.
         </p>
       )}
     </div>
