@@ -5,7 +5,7 @@ import { IconAlertCircle, IconPlus } from "@tabler/icons-react";
 import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { createTicket, uploadTicketAttachment, type CreateTicketState } from "@/lib/actions/tickets";
+import { createTicket, type CreateTicketState } from "@/lib/actions/tickets";
 import type { TicketCriticality } from "@/lib/types/database";
 
 const initialState: CreateTicketState = { error: null };
@@ -27,9 +27,6 @@ export function RaiseTicketForm({
   modules: string[];
 }) {
   const [open, setOpen] = useState(false);
-  const [draftId] = useState(() => crypto.randomUUID());
-  const [pendingPaths, setPendingPaths] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
   const boundAction = createTicket.bind(null, projectId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
   const wasPending = useRef(false);
@@ -37,21 +34,9 @@ export function RaiseTicketForm({
   useEffect(() => {
     if (wasPending.current && !pending && !state.error) {
       setOpen(false);
-      setPendingPaths([]);
     }
     wasPending.current = pending;
   }, [pending, state.error]);
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const fd = new FormData();
-    fd.set("file", file);
-    const result = await uploadTicketAttachment(projectId, draftId, fd);
-    if (result.path) setPendingPaths((prev) => [...prev, result.path!]);
-    setUploading(false);
-  }
 
   return (
     <>
@@ -79,11 +64,6 @@ export function RaiseTicketForm({
               Ticket {state.ticketNo} submitted.
             </div>
           )}
-
-          <input type="hidden" name="draft_id" value={draftId} />
-          {pendingPaths.map((p) => (
-            <input key={p} type="hidden" name="pending_path" value={p} />
-          ))}
 
           <div>
             <Label htmlFor="module">Module</Label>
@@ -129,16 +109,7 @@ export function RaiseTicketForm({
             />
           </div>
 
-          <div>
-            <Label htmlFor="attachment">Attachment (optional)</Label>
-            <input id="attachment" type="file" onChange={handleFile} className="text-sm text-text-2" />
-            {uploading && <p className="mt-1 text-xs text-text-3">Uploading…</p>}
-            {pendingPaths.length > 0 && (
-              <p className="mt-1 text-xs text-text-3">{pendingPaths.length} file(s) attached.</p>
-            )}
-          </div>
-
-          <Button type="submit" className="w-full" disabled={pending || uploading}>
+          <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Submitting…" : "Submit ticket"}
           </Button>
         </form>
