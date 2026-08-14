@@ -80,7 +80,13 @@ export function InviteButton({
                 <option value="project_manager">Project manager</option>
                 <option value="technical_lead">Technical lead</option>
                 <option value="pmo">PMO</option>
-                <option value="member">Member</option>
+                {/* Functional/Technical Consultant both grant the same
+                    underlying "member" access (assigned-work-only) — split
+                    into two labels here just so the common case reads
+                    clearly at invite time, without adding a real new
+                    permission tier. */}
+                <option value="member">Technical Consultant</option>
+                <option value="member">Functional Consultant</option>
                 <option value="client">Client</option>
                 <option value="super_user">Super user</option>
               </select>
