@@ -6,7 +6,11 @@ import { getPicklists } from "@/lib/data/picklists";
 import { TicketKpiRow } from "@/components/support/ticket-kpi-row";
 import { TicketStatusDonut } from "@/components/support/ticket-status-donut";
 import { TicketCriticalityBar } from "@/components/support/ticket-criticality-bar";
+import { TicketModuleBar } from "@/components/support/ticket-module-bar";
 import { TicketAgingBuckets } from "@/components/support/ticket-aging-buckets";
+import { TicketWorkload } from "@/components/support/ticket-workload";
+import { TicketTopRaisers } from "@/components/support/ticket-top-raisers";
+import { TicketDeadlineMonitor } from "@/components/support/ticket-deadline-monitor";
 import { TicketsTable } from "@/components/support/tickets-table";
 import { RaiseTicketForm } from "@/components/support/raise-ticket-form";
 
@@ -72,7 +76,17 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
         <TicketCriticalityBar data={dashboard.byCriticality} />
       </div>
 
-      <TicketAgingBuckets data={dashboard.agingBuckets} />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <TicketModuleBar data={dashboard.byModule} />
+        <TicketAgingBuckets data={dashboard.agingBuckets} />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <TicketWorkload data={dashboard.workload} />
+        <TicketTopRaisers data={dashboard.topRaisers} />
+      </div>
+
+      <TicketDeadlineMonitor data={dashboard.upcomingDeadlines} />
 
       <TicketsTable
         projectId={id}

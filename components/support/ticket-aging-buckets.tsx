@@ -11,7 +11,7 @@ export function TicketAgingBuckets({ data }: { data: SupportDashboardData["aging
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.36 }}
+      transition={{ duration: 0.4, delay: 0.42 }}
       className="rounded-card border border-border bg-surface p-5"
       style={{ boxShadow: "var(--shadow-card)" }}
     >

@@ -212,6 +212,20 @@ export interface SupportDashboardData {
   statusDistribution: { status: string; count: number }[];
   byCriticality: { criticality: string; count: number }[];
   agingBuckets: { bucket: string; count: number }[];
+  /** All-time ticket volume per module — not just open, so this reads as
+   * "where does support load come from" rather than duplicating the aging
+   * buckets' open-only view. */
+  byModule: { module: string; count: number }[];
+  /** "Who's holding tickets" — open tickets grouped by assignee, busiest
+   * first. Unassigned/unrouted tickets are excluded here since they're
+   * already the KPI row's "Unrouted" tile. */
+  workload: { name: string; open: number; breaching: number }[];
+  /** Top raisers by ticket count, all-time — surfaces which client
+   * contact/super user is generating the most support volume. */
+  topRaisers: { name: string; count: number }[];
+  /** Open tickets with an SLA due date, soonest (or most overdue) first —
+   * same spirit as the object dashboard's Deadline monitor. */
+  upcomingDeadlines: TicketWithNames[];
 }
 
 /** Aggregates the Support dashboard's KPI tiles, status donut, criticality
@@ -221,6 +235,7 @@ export async function getSupportDashboardData(projectId: string): Promise<Suppor
   const supabase = await createClient();
   const { data } = await supabase.from("tickets").select("*").eq("project_id", projectId);
   const tickets = (data ?? []) as import("@/lib/types/database").Ticket[];
+  const named = await withNames(supabase, tickets);
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   const open = tickets.filter((t) => !["resolved", "closed"].includes(t.status));
@@ -269,11 +284,50 @@ export async function getSupportDashboardData(projectId: string): Promise<Suppor
   }
   const agingBuckets = Object.entries(buckets).map(([bucket, count]) => ({ bucket, count }));
 
+  const moduleCounts = new Map<string, number>();
+  for (const t of tickets) moduleCounts.set(t.module, (moduleCounts.get(t.module) ?? 0) + 1);
+  const byModule = Array.from(moduleCounts.entries())
+    .map(([module, count]) => ({ module, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const openNamed = named.filter((t) => !["resolved", "closed"].includes(t.status));
+  const workloadMap = new Map<string, { name: string; open: number; breaching: number }>();
+  for (const t of openNamed) {
+    if (!t.assigned_to || !t.assigned_to_name) continue;
+    const entry = workloadMap.get(t.assigned_to) ?? { name: t.assigned_to_name, open: 0, breaching: 0 };
+    entry.open += 1;
+    if (t.sla_breached) entry.breaching += 1;
+    workloadMap.set(t.assigned_to, entry);
+  }
+  const workload = Array.from(workloadMap.values())
+    .sort((a, b) => b.open - a.open)
+    .slice(0, 8);
+
+  const raiserMap = new Map<string, { name: string; count: number }>();
+  for (const t of named) {
+    if (!t.raised_by || !t.raised_by_name) continue;
+    const entry = raiserMap.get(t.raised_by) ?? { name: t.raised_by_name, count: 0 };
+    entry.count += 1;
+    raiserMap.set(t.raised_by, entry);
+  }
+  const topRaisers = Array.from(raiserMap.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  const upcomingDeadlines = openNamed
+    .filter((t) => t.sla_due_at)
+    .sort((a, b) => new Date(a.sla_due_at!).getTime() - new Date(b.sla_due_at!).getTime())
+    .slice(0, 8);
+
   return {
     kpis: { open: open.length, unrouted, breachingSla, resolvedThisWeek, avgFirstResponseHrs, avgResolutionHrs },
     statusDistribution,
     byCriticality,
     agingBuckets,
+    byModule,
+    workload,
+    topRaisers,
+    upcomingDeadlines,
   };
 }
 

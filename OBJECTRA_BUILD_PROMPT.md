@@ -276,3 +276,15 @@ A second, independent SLA mechanism layered on top of the per-criticality `sla_p
 
 - **Reassign, widened:** the ticket detail drawer's Reassign picker now offers the **full org resource roster** (invited or not), same as routing's picker (section 24) — previously it was restricted to already-invited project members. `tickets.assigned_to` still has to be a `profiles` id (someone who can actually log in and work the ticket), so `reassignTicket()` resolves the picked resource's `profile_id` itself and returns a plain-language message ("X hasn't accepted their invite yet — invite them from Resources first...") instead of silently failing or hiding uninvited people from the list.
 - **Delete ticket:** `tickets` never had a DELETE policy at all (section 17 only specified SELECT/INSERT/UPDATE) — nobody could delete a ticket. `0033_ticket_delete_policy.sql` adds `tickets_delete` (`is_org_admin()`/`is_project_editor()`, same scope as UPDATE). `deleteTicket()` action + a confirm-to-delete button (`components/support/delete-ticket-button.tsx`, same inline Yes/Cancel pattern as `DeleteResourceButton`) in the ticket detail drawer, visible only to PM/technical_lead/org_admin. `ticket_comments`/`ticket_events` cascade automatically (both already `on delete cascade` from `ticket_id`).
+- **Invite fallback for "already registered":** `createUser()` can fail if an auth account already exists for that email but `resources.profile_id` never got linked (e.g. an earlier attempt was interrupted). `inviteResourceRecord()` now falls back to finding that account by email (`listUsers()` + match — the admin API has no direct get-by-email) and resets its password instead of failing, re-linking `resources.profile_id` either way.
+
+## 26. Richer Support dashboard (added post-launch, amends section 19)
+
+The Support dashboard grew from KPI row + status donut + criticality bar + aging buckets into a fuller picture, still built from the same RLS-scoped ticket set (`lib/data/support.ts::getSupportDashboardData`, no separate access check):
+
+- **Tickets by module** (`components/support/ticket-module-bar.tsx`) — all-time ticket volume per module, not just open, so it reads as "where does support load come from."
+- **Who's holding tickets** (`ticket-workload.tsx`) — open tickets grouped by assignee, busiest first, with a proportional bar and an SLA-breach count per person.
+- **Top raisers** (`ticket-top-raisers.tsx`) — who's raising the most tickets, all-time; visibility into which client contact/super user drives the most support volume.
+- **SLA deadline monitor** (`ticket-deadline-monitor.tsx`) — open tickets with an SLA due date, soonest (or most overdue) first, same spirit as the object dashboard's Deadline monitor.
+
+All new cards follow the existing card/motion/Recharts conventions (`rounded-card` + `shadow-card`, staggered `motion.div` entrance delays extended through 0.24→0.60 to fit the new row order, avatar-initial circles matching the Resources table's style for named lists).
