@@ -137,9 +137,10 @@ begin
   -- Routes SD to the admin (a degenerate but functional fixture — the seed
   -- only has one real internal user). FI is deliberately left unrouted so
   -- the Support dashboard's "unrouted" tile has something to show out of
-  -- the box.
+  -- the box. support_routing references resources, not profiles
+  -- (0031_routing_uses_resources.sql), hence v_admin_resource_id here.
   insert into support_routing (project_id, module, primary_consultant_id, is_active)
-  values (v_project_id, 'SD', v_admin_id, true);
+  values (v_project_id, 'SD', v_admin_resource_id, true);
 
   -- Default picklists — admins can add/remove more from Settings.
   insert into picklists (org_id, type, value, color, is_done, sort_order) values

@@ -10,20 +10,22 @@ const selectClass =
   "h-8 rounded-[7px] border border-border-2 bg-surface-2 px-2 text-xs text-text-2 focus:border-brass focus-visible:outline-none";
 
 type ConsultantOption = { id: string; full_name: string; primary_module: string | null };
-type UninvitedResource = { full_name: string; primary_module: string | null };
 
 export function SupportRoutingForm({
   projectId,
   routing,
   modules,
   consultantOptions,
-  uninvitedTaggedResources,
 }: {
   projectId: string;
   routing: SupportRouting[];
   modules: string[];
+  /** The full org resource roster — primary/backup can be set to any
+   * resource regardless of invite status (support_routing references
+   * resources, not profiles; see 0031_routing_uses_resources.sql). Ticket
+   * auto-routing falls back to the PM if the matched resource hasn't been
+   * invited yet, and starts firing correctly the moment they are. */
   consultantOptions: ConsultantOption[];
-  uninvitedTaggedResources: UninvitedResource[];
 }) {
   const [rows, setRows] = useState(routing);
   const [newModule, setNewModule] = useState("");
@@ -60,12 +62,10 @@ export function SupportRoutingForm({
     return consultantOptions.find((c) => c.id === id)?.full_name ?? "—";
   }
 
-  // Every active project member is always selectable — primary_module
-  // tagging (Settings → Resources) can be missing or point at a
-  // disconnected roster row, and a hard filter on it turns that into a
-  // dead-end empty dropdown. Instead, sort whoever matches the chosen
-  // module to the top and label their tag, so the right pick is easy to
-  // find without ever blocking on imperfect tagging.
+  // Every org resource is always selectable, invited or not — sort
+  // whoever's tagged with the chosen module to the top and label their
+  // tag, so the right pick is easy to find without blocking on tagging or
+  // invite status.
   const sortedConsultants = [...consultantOptions].sort((a, b) => {
     if (!newModule) return a.full_name.localeCompare(b.full_name);
     const aMatch = (a.primary_module ?? "").trim().toLowerCase() === newModule.trim().toLowerCase();
@@ -89,7 +89,8 @@ export function SupportRoutingForm({
       <h3 className="font-display text-sm font-semibold">Ticket routing</h3>
       <p className="mt-1 text-xs text-text-3">
         A ticket raised for a module auto-assigns to the primary consultant (backup if primary is unavailable). No
-        rule for a module leaves the ticket unrouted, assigned to the PM.
+        rule for a module leaves the ticket unrouted, assigned to the PM. Primary/backup can be set to anyone on the
+        roster, even before they&apos;re invited — routing activates automatically once they are.
       </p>
 
       <ul className="mt-4 divide-y divide-border">
@@ -125,36 +126,12 @@ export function SupportRoutingForm({
           Add rule
         </Button>
       </div>
-      {newModule && (() => {
-        const moduleMatches = (m: string | null) => (m ?? "").trim().toLowerCase() === newModule.trim().toLowerCase();
-        if (sortedConsultants.some((c) => moduleMatches(c.primary_module))) return null;
-
-        // Distinguish "nobody's tagged at all" from "someone's tagged but
-        // hasn't accepted an invite yet" — routing needs an actual login
-        // (support_routing references profiles, not the roster), so a
-        // Resources-only entry can't be selected until invited.
-        const uninvited = uninvitedTaggedResources.filter((r) => moduleMatches(r.primary_module));
-        if (uninvited.length > 0) {
-          return (
-            <p className="mt-2 text-xs text-text-3">
-              {uninvited.map((r) => r.full_name).join(", ")} {uninvited.length === 1 ? "is" : "are"} tagged &quot;
-              {newModule}&quot; in Resources but{" "}
-              {uninvited.length === 1 ? "hasn't" : "haven't"} accepted an invite yet — invite from{" "}
-              <a href="/resources" className="underline" style={{ color: "var(--brass)" }}>
-                Resources
-              </a>{" "}
-              first, then they&apos;ll be selectable here.
-            </p>
-          );
-        }
-
-        return (
-          <p className="mt-2 text-xs text-text-3">
-            Nobody on this project is tagged with primary module &quot;{newModule}&quot; in Resources —
-            everyone&apos;s still listed below, pick manually.
-          </p>
-        );
-      })()}
+      {newModule && !sortedConsultants.some((c) => (c.primary_module ?? "").trim().toLowerCase() === newModule.trim().toLowerCase()) && (
+        <p className="mt-2 text-xs text-text-3">
+          Nobody in Resources is tagged with primary module &quot;{newModule}&quot; yet — everyone&apos;s still
+          listed above, pick manually.
+        </p>
+      )}
     </div>
   );
 }

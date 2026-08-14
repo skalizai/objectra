@@ -36,6 +36,7 @@ declare
   v_consultant_x uuid := gen_random_uuid();
   v_consultant_y uuid := gen_random_uuid();
   v_pm uuid := gen_random_uuid();
+  v_consultant_x_resource uuid;
 begin
   select id into v_org_id from organizations order by created_at limit 1;
 
@@ -70,8 +71,15 @@ begin
   insert into sla_policies (project_id, criticality, response_mins, resolve_mins)
   values (v_project_id, 'P2_high', 240, 1440);
 
+  -- support_routing references resources, not profiles
+  -- (0031_routing_uses_resources.sql) — routing works off the roster
+  -- entry, resolved to a login (or not) at ticket-creation time.
+  insert into resources (org_id, full_name, email, profile_id, invite_status, created_by)
+  values (v_org_id, 'Consultant X', 'consultant-x@test.local', v_consultant_x, 'invited', v_pm)
+  returning id into v_consultant_x_resource;
+
   insert into support_routing (project_id, module, primary_consultant_id, is_active)
-  values (v_project_id, 'MM', v_consultant_x, true);
+  values (v_project_id, 'MM', v_consultant_x_resource, true);
 
   create temporary table if not exists rls_test_ids (k text primary key, v uuid);
   insert into rls_test_ids values

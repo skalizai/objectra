@@ -313,8 +313,11 @@ export interface NotificationSettings {
 // ---------------------------------------------------------------------------
 
 /** Module -> consultant routing for a project. primary/backup reference
- * profiles directly (not resources) — a ticket needs someone who can
- * actually log in and work it. */
+ * resources (0031_routing_uses_resources.sql), not profiles — a routing
+ * rule can be set up against any org resource regardless of invite status;
+ * ticket auto-routing resolves the actual login (resources.profile_id) at
+ * ticket-creation time and falls back to the PM if that resource hasn't
+ * been invited yet. */
 export interface SupportRouting {
   id: string;
   project_id: string;

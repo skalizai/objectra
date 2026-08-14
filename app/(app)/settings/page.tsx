@@ -42,59 +42,27 @@ export default async function SettingsPage({
   let supportRouting: Awaited<ReturnType<typeof getSupportRouting>> = [];
   let slaPolicies: Awaited<ReturnType<typeof getSlaPolicies>> = [];
   let consultantOptions: { id: string; full_name: string; primary_module: string | null }[] = [];
-  let uninvitedTaggedResources: { full_name: string; primary_module: string | null }[] = [];
   if (selectedProjectId) {
-    const [{ data }, { data: projectRow }, routing, policies, { data: memberRows }, { data: uninvitedRows }] =
-      await Promise.all([
-        supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
-        supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
-        getSupportRouting(selectedProjectId),
-        getSlaPolicies(selectedProjectId),
-        supabase
-          .from("project_members")
-          .select("profile:profiles(id, full_name)")
-          .eq("project_id", selectedProjectId)
-          .eq("is_active", true)
-          .in("role", ["member", "technical_lead", "project_manager"]),
-        // Tagged with a module in Resources but never invited (no login),
-        // so they can't be a routing consultant yet — support_routing
-        // references profiles, not the roster. Surfaced as a hint below
-        // rather than silently omitted.
-        supabase
-          .from("resources")
-          .select("full_name, primary_module")
-          .eq("org_id", viewer.profile.org_id)
-          .eq("invite_status", "not_invited")
-          .not("primary_module", "is", null),
-      ]);
+    const [{ data }, { data: projectRow }, routing, policies, { data: resourceRows }] = await Promise.all([
+      supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
+      supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
+      getSupportRouting(selectedProjectId),
+      getSlaPolicies(selectedProjectId),
+      // support_routing references resources, not profiles
+      // (0031_routing_uses_resources.sql) — a routing rule can be set up
+      // against any org resource regardless of invite status, so this is
+      // the full org roster, not just already-invited project members.
+      supabase
+        .from("resources")
+        .select("id, full_name, primary_module")
+        .eq("org_id", viewer.profile.org_id)
+        .order("full_name"),
+    ]);
     settings = data;
     selectedProject = projectRow;
     supportRouting = routing;
     slaPolicies = policies;
-    uninvitedTaggedResources = uninvitedRows ?? [];
-
-    const profiles = ((memberRows ?? []) as unknown as { profile: { id: string; full_name: string } | null }[])
-      .map((m) => m.profile)
-      .filter((p): p is { id: string; full_name: string } => !!p);
-
-    // primary_module is edited from the Resources page, which writes to
-    // resources.primary_module — not profiles.primary_module (a separate,
-    // never-updated-by-that-UI column) — so it has to be resolved via
-    // resources.profile_id, not read straight off profiles.
-    const { data: resourceRows } = profiles.length
-      ? await supabase
-          .from("resources")
-          .select("profile_id, primary_module")
-          .in(
-            "profile_id",
-            profiles.map((p) => p.id),
-          )
-      : { data: [] as { profile_id: string | null; primary_module: string | null }[] };
-    const moduleByProfileId = new Map(
-      (resourceRows ?? []).filter((r) => r.profile_id).map((r) => [r.profile_id as string, r.primary_module]),
-    );
-
-    consultantOptions = profiles.map((p) => ({ ...p, primary_module: moduleByProfileId.get(p.id) ?? null }));
+    consultantOptions = resourceRows ?? [];
   }
 
   // Needed for the notification form's "statuses to include" checklist
@@ -151,7 +119,6 @@ export default async function SettingsPage({
                   routing={supportRouting}
                   modules={picklists.modules.map((m) => m.value)}
                   consultantOptions={consultantOptions}
-                  uninvitedTaggedResources={uninvitedTaggedResources}
                 />
                 <SlaPolicyForm projectId={selectedProjectId} policies={slaPolicies} />
               </div>
