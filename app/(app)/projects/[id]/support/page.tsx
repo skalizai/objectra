@@ -16,14 +16,13 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
   if (!viewer) return null;
 
   const canManage = viewer.role === "org_admin" || isProjectEditorRole(viewer.projectRoles[id]);
-  const canRaise = canManage || viewer.projectRoles[id] === "super_user";
 
   const supabase = await createClient();
-  const [dashboard, tickets, picklists, { data: objects }, { data: memberRows }] = await Promise.all([
+  const [dashboard, tickets, picklists, { data: project }, { data: memberRows }] = await Promise.all([
     getSupportDashboardData(id),
     getProjectTickets(id),
     getPicklists(viewer.profile.org_id),
-    supabase.from("objects").select("id, title, wricef_id").eq("project_id", id).order("title"),
+    supabase.from("projects").select("phase").eq("id", id).maybeSingle(),
     supabase
       .from("project_members")
       .select("profile:profiles(id, full_name)")
@@ -31,6 +30,9 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
       .eq("is_active", true)
       .in("role", ["member", "technical_lead", "project_manager"]),
   ]);
+
+  const ticketsEnabled = project?.phase === "hypercare" || project?.phase === "support";
+  const canRaise = ticketsEnabled && (canManage || viewer.projectRoles[id] === "super_user");
 
   const consultantOptions = (
     (memberRows ?? []) as unknown as { profile: { id: string; full_name: string } | null }[]
@@ -46,13 +48,22 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
           <p className="mt-1 text-sm text-text-2">Hypercare ticket routing, SLA tracking, and the support queue.</p>
         </div>
         {canRaise && (
-          <RaiseTicketForm
-            projectId={id}
-            modules={picklists.modules.map((m) => m.value)}
-            objectOptions={objects ?? []}
-          />
+          <RaiseTicketForm projectId={id} modules={picklists.modules.map((m) => m.value)} />
         )}
       </div>
+
+      {!ticketsEnabled && canManage && (
+        <div
+          className="rounded-control border px-3 py-2.5 text-sm"
+          style={{ borderColor: "var(--brass)", color: "var(--text-2)" }}
+        >
+          Ticket creation is off until this project is in Hypercare or Support phase — flip it from{" "}
+          <a href={`/settings?project=${id}`} className="underline" style={{ color: "var(--brass)" }}>
+            Settings
+          </a>
+          .
+        </div>
+      )}
 
       <TicketKpiRow kpis={dashboard.kpis} />
 

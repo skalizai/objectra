@@ -22,11 +22,9 @@ const CRITICALITY_OPTIONS: { value: TicketCriticality; label: string; descriptio
 export function RaiseTicketForm({
   projectId,
   modules,
-  objectOptions,
 }: {
   projectId: string;
   modules: string[];
-  objectOptions: { id: string; title: string; wricef_id: string | null }[];
 }) {
   const [open, setOpen] = useState(false);
   const [draftId] = useState(() => crypto.randomUUID());
@@ -130,18 +128,6 @@ export function RaiseTicketForm({
               className="w-full resize-none rounded-control border border-border-2 bg-surface-2 px-3 py-2 text-sm text-text focus:border-brass focus-visible:outline-none"
             />
           </div>
-
-          {objectOptions.length > 0 && (
-            <div>
-              <Label htmlFor="related_object_id">Related object (optional)</Label>
-              <select id="related_object_id" name="related_object_id" className={selectClass} defaultValue="">
-                <option value="">—</option>
-                {objectOptions.map((o) => (
-                  <option key={o.id} value={o.id}>{o.wricef_id ? `${o.wricef_id} — ` : ""}{o.title}</option>
-                ))}
-              </select>
-            </div>
-          )}
 
           <div>
             <Label htmlFor="attachment">Attachment (optional)</Label>

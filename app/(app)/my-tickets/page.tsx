@@ -22,9 +22,13 @@ export default async function MyTicketsPage() {
     createClient(),
   ]);
 
-  const { data: projects } = superUserProjectIds.length
-    ? await supabase.from("projects").select("id, name").in("id", superUserProjectIds)
-    : { data: [] as { id: string; name: string }[] };
+  const { data: allProjects } = superUserProjectIds.length
+    ? await supabase.from("projects").select("id, name, phase").in("id", superUserProjectIds)
+    : { data: [] as { id: string; name: string; phase: string }[] };
+  // Ticket creation is only allowed once a project is in hypercare/support
+  // (tickets_insert RLS policy) — don't offer a raise button that would
+  // just fail.
+  const projects = (allProjects ?? []).filter((p) => p.phase === "hypercare" || p.phase === "support");
 
   const open = tickets.filter((t) => !["resolved", "closed"].includes(t.status));
   const resolved = tickets.filter((t) => ["resolved", "closed"].includes(t.status));
@@ -37,10 +41,10 @@ export default async function MyTicketsPage() {
           <p className="mt-1 text-sm text-text-2">Incidents you&apos;ve raised.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {(projects ?? []).map((p) => (
+          {projects.map((p) => (
             <div key={p.id} className="flex items-center gap-2">
-              {(projects?.length ?? 0) > 1 && <span className="text-xs text-text-3">{p.name}</span>}
-              <RaiseTicketForm projectId={p.id} modules={picklists.modules.map((m) => m.value)} objectOptions={[]} />
+              {projects.length > 1 && <span className="text-xs text-text-3">{p.name}</span>}
+              <RaiseTicketForm projectId={p.id} modules={picklists.modules.map((m) => m.value)} />
             </div>
           ))}
         </div>
