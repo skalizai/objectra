@@ -249,7 +249,7 @@ Inside the project workspace, a new **Support** tab (visible when phase is hyper
 
 ## 22. Non-goals for the ticketing v1
 
-External email-to-ticket ingestion, a public portal for non-invited users, CSAT surveys, knowledge base, escalation matrices beyond primary/backup, and integration with external ITSM tools (ServiceNow/Jira SM) — design the `tickets` schema so an external reference id can be added later.
+External email-to-ticket ingestion, a public portal for non-invited users, CSAT surveys, knowledge base, and integration with external ITSM tools (ServiceNow/Jira SM) — design the `tickets` schema so an external reference id can be added later. (Escalation matrices beyond primary/backup were originally listed here too, but that's since been built — see section 24.)
 
 ## 23. Implementation notes (post-launch fixes and corrections)
 
@@ -260,3 +260,14 @@ Recorded here rather than silently — kept for whoever next touches this code.
 - **Pre-existing bug fixed in passing:** `supabase/seed.sql` set the sample project's `pm_id` to a `profiles.id` — `projects.pm_id` was repointed to `resources.id` back in migration `0016_project_pm_uses_resources.sql`, so the seed's own FK was broken and `db:reset` failed before this feature's seed additions could even run. Fixed to insert/use a `resources` row for the seeded admin.
 - **Still-open pre-existing bug, not touched:** `member_update_object()` (base schema, section 5) still checks the pre-`0013` `object_assignments.profile_id` column, which no longer exists (assignments were repointed to `resource_id`) — it likely fails today for any member self-updating an assigned object. Unaffected by anything in this addendum (the ticket RPCs were written correctly from scratch), flagged here since it was noticed along the way.
 - **`supabase/tests/rls_smoke_test.sql`** (the original, non-ticket smoke test) is similarly stale for the same `object_assignments.profile_id` reason — `supabase/tests/tickets_rls_smoke_test.sql` (this addendum's own test) is written correctly against the current schema and is unaffected.
+
+## 24. SLA escalation ladder (added post-launch, amends sections 4/16/18/19)
+
+A second, independent SLA mechanism layered on top of the per-criticality `sla_policies` targets in section 16 — a flat, project-wide escalation ladder: **SL1 → SL2 → SL3**, each tier with its own "still open after N minutes" threshold and its own list of email recipients. If a ticket sits unresolved past a tier's threshold, everyone on that tier's list is emailed; if it's *still* unresolved once the next tier's (longer) threshold passes, that tier fires too — independent of the ticket's criticality-driven `sla_due_at`/breach check, which keeps running in parallel.
+
+- **`sla_escalation_tiers`** — `project_id`, `tier` (`SL1|SL2|SL3`), `threshold_mins`. Unique (`project_id`, `tier`).
+- **`sla_escalation_recipients`** — `tier_id`, `resource_id` (resolved straight to `resources.email` — no login required at all, unlike ticket routing/assignment, since this is a pure FYI broadcast, not ticket ownership). Unique (`tier_id`, `resource_id`).
+- **`tickets`** gains `sl1_alerted_at`/`sl2_alerted_at`/`sl3_alerted_at` (same idempotency idiom as `sla_breach_alerted_at`/`sla_warning_alerted_at` — cleared on reopen by `raiser_close_or_reopen_ticket()`, so a re-breached ticket can escalate through all three tiers again).
+- **RLS:** read for project members, write for `is_org_admin()`/`is_project_editor()` — same shape as `support_routing`/`sla_policies`.
+- **Detection:** folded into the existing `sla-scan` job (not a separate cron, to stay within the Hobby-plan one-cron-schedule-per-day-per-route constraint noted in section 18) — after the per-criticality breach/warning pass, it separately scans every open ticket on any project with escalation tiers configured, and for each tier whose threshold has been crossed and not yet alerted, sends **one broadcast email** (all that tier's recipients in a single `to:` list, not one send per recipient) via `notifySlaEscalation()` / `emails/sla-escalation-email.tsx`, logged to `email_log` as a new `sla_escalation` type.
+- **Settings UI:** `components/settings/sla-escalation-form.tsx`, rendered below the SLA policy editor — one card per tier (SL1/SL2/SL3) with an hours-until-escalate input and an add/remove recipient list, sourced from the same full-org-roster resource picker routing uses. A tier's recipient list can't be edited until its threshold has been saved once (needs the tier row to exist to attach recipients to).

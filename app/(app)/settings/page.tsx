@@ -14,7 +14,8 @@ import { MyProfileForm } from "@/components/settings/my-profile-form";
 import { ProjectPhaseToggle } from "@/components/settings/project-phase-toggle";
 import { SupportRoutingForm } from "@/components/settings/support-routing-form";
 import { SlaPolicyForm } from "@/components/settings/sla-policy-form";
-import { getSupportRouting, getSlaPolicies } from "@/lib/data/support";
+import { SlaEscalationForm } from "@/components/settings/sla-escalation-form";
+import { getSupportRouting, getSlaPolicies, getSlaEscalationTiers } from "@/lib/data/support";
 import type { NotificationSettings, Project } from "@/lib/types/database";
 import type { MemberWithMemberships } from "@/lib/data/members";
 
@@ -41,27 +42,33 @@ export default async function SettingsPage({
   let selectedProject: Project | null = null;
   let supportRouting: Awaited<ReturnType<typeof getSupportRouting>> = [];
   let slaPolicies: Awaited<ReturnType<typeof getSlaPolicies>> = [];
-  let consultantOptions: { id: string; full_name: string; primary_module: string | null }[] = [];
+  let slaEscalationTiers: Awaited<ReturnType<typeof getSlaEscalationTiers>> = [];
+  let consultantOptions: { id: string; full_name: string; email: string; primary_module: string | null }[] = [];
   if (selectedProjectId) {
-    const [{ data }, { data: projectRow }, routing, policies, { data: resourceRows }] = await Promise.all([
-      supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
-      supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
-      getSupportRouting(selectedProjectId),
-      getSlaPolicies(selectedProjectId),
-      // support_routing references resources, not profiles
-      // (0031_routing_uses_resources.sql) — a routing rule can be set up
-      // against any org resource regardless of invite status, so this is
-      // the full org roster, not just already-invited project members.
-      supabase
-        .from("resources")
-        .select("id, full_name, primary_module")
-        .eq("org_id", viewer.profile.org_id)
-        .order("full_name"),
-    ]);
+    const [{ data }, { data: projectRow }, routing, policies, escalationTiers, { data: resourceRows }] =
+      await Promise.all([
+        supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
+        supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
+        getSupportRouting(selectedProjectId),
+        getSlaPolicies(selectedProjectId),
+        getSlaEscalationTiers(selectedProjectId),
+        // support_routing references resources, not profiles
+        // (0031_routing_uses_resources.sql) — a routing rule can be set up
+        // against any org resource regardless of invite status, so this is
+        // the full org roster, not just already-invited project members.
+        // Same roster backs SLA escalation recipients (email-only, no login
+        // needed at all there).
+        supabase
+          .from("resources")
+          .select("id, full_name, email, primary_module")
+          .eq("org_id", viewer.profile.org_id)
+          .order("full_name"),
+      ]);
     settings = data;
     selectedProject = projectRow;
     supportRouting = routing;
     slaPolicies = policies;
+    slaEscalationTiers = escalationTiers;
     consultantOptions = resourceRows ?? [];
   }
 
@@ -122,6 +129,11 @@ export default async function SettingsPage({
                 />
                 <SlaPolicyForm projectId={selectedProjectId} policies={slaPolicies} />
               </div>
+              <SlaEscalationForm
+                projectId={selectedProjectId}
+                tiers={slaEscalationTiers}
+                consultantOptions={consultantOptions}
+              />
             </>
           )}
         </div>

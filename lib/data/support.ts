@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type {
+  SlaEscalationTier,
+  SlaEscalationTierName,
   SlaPolicy,
   SupportRouting,
   SupportSummary,
@@ -141,6 +143,61 @@ export async function getSlaPolicies(projectId: string): Promise<SlaPolicy[]> {
     .eq("project_id", projectId)
     .order("criticality", { ascending: true });
   return (data ?? []) as SlaPolicy[];
+}
+
+export interface EscalationRecipientWithName {
+  id: string;
+  resource_id: string;
+  full_name: string;
+  email: string;
+}
+
+export interface SlaEscalationTierWithRecipients {
+  id: string;
+  project_id: string;
+  tier: SlaEscalationTierName;
+  threshold_mins: number;
+  recipients: EscalationRecipientWithName[];
+}
+
+export async function getSlaEscalationTiers(projectId: string): Promise<SlaEscalationTierWithRecipients[]> {
+  const supabase = await createClient();
+  const { data: tiers } = await supabase
+    .from("sla_escalation_tiers")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("tier", { ascending: true });
+
+  const tierRows = (tiers ?? []) as SlaEscalationTier[];
+  if (tierRows.length === 0) return [];
+
+  const { data: recipientRows } = await supabase
+    .from("sla_escalation_recipients")
+    .select("id, tier_id, resource:resources(id, full_name, email)")
+    .in(
+      "tier_id",
+      tierRows.map((t) => t.id),
+    );
+
+  const recipientsByTier = new Map<string, EscalationRecipientWithName[]>();
+  for (const r of (recipientRows ?? []) as unknown as {
+    id: string;
+    tier_id: string;
+    resource: { id: string; full_name: string; email: string } | null;
+  }[]) {
+    if (!r.resource) continue;
+    const list = recipientsByTier.get(r.tier_id) ?? [];
+    list.push({ id: r.id, resource_id: r.resource.id, full_name: r.resource.full_name, email: r.resource.email });
+    recipientsByTier.set(r.tier_id, list);
+  }
+
+  return tierRows.map((t) => ({
+    id: t.id,
+    project_id: t.project_id,
+    tier: t.tier,
+    threshold_mins: t.threshold_mins,
+    recipients: recipientsByTier.get(t.id) ?? [],
+  }));
 }
 
 export interface SupportDashboardData {

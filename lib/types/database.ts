@@ -46,7 +46,8 @@ export type EmailType =
   | "ticket_created"
   | "ticket_assigned"
   | "ticket_status"
-  | "sla_alert";
+  | "sla_alert"
+  | "sla_escalation";
 export type EmailStatus = "sent" | "failed";
 export type DigestDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
@@ -339,6 +340,31 @@ export interface SlaPolicy {
   updated_at: string;
 }
 
+export type SlaEscalationTierName = "SL1" | "SL2" | "SL3";
+
+/** A rung on the escalation ladder: "still unresolved after
+ * threshold_mins minutes (since creation) → email this tier's
+ * recipients." Independent of the per-criticality SlaPolicy targets
+ * above — a flat, project-wide ladder rather than one per criticality. */
+export interface SlaEscalationTier {
+  id: string;
+  project_id: string;
+  tier: SlaEscalationTierName;
+  threshold_mins: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A resource on a tier's notify list — resolved straight to
+ * resources.email (no login required, these are FYI broadcasts, not
+ * ticket ownership). */
+export interface SlaEscalationRecipient {
+  id: string;
+  tier_id: string;
+  resource_id: string;
+  created_at: string;
+}
+
 export interface Ticket {
   id: string;
   project_id: string;
@@ -363,6 +389,9 @@ export interface Ticket {
   sla_breached: boolean;
   sla_breach_alerted_at: string | null;
   sla_warning_alerted_at: string | null;
+  sl1_alerted_at: string | null;
+  sl2_alerted_at: string | null;
+  sl3_alerted_at: string | null;
   external_ref_id: string | null;
   created_at: string;
   updated_at: string;

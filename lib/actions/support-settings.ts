@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/auth/get-viewer";
 import { sendTestTicketEmail as sendTestTicketEmailFixture } from "@/lib/email/notify-ticket";
-import type { ProjectPhase, TicketCriticality } from "@/lib/types/database";
+import type { ProjectPhase, SlaEscalationTierName, TicketCriticality } from "@/lib/types/database";
 
 export interface SimpleActionState {
   error: string | null;
@@ -92,6 +92,62 @@ export async function upsertSlaPolicy(
     );
 
   if (error) return { error: error.message, success: false };
+  revalidatePath("/settings");
+  return { error: null, success: true };
+}
+
+export interface UpsertTierState extends SimpleActionState {
+  tierId?: string;
+}
+
+export async function upsertSlaEscalationTier(
+  projectId: string,
+  tier: SlaEscalationTierName,
+  thresholdMins: number,
+): Promise<UpsertTierState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/sign-in");
+  if (!Number.isFinite(thresholdMins) || thresholdMins <= 0) {
+    return { error: "Threshold must be a positive number of minutes.", success: false };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("sla_escalation_tiers")
+    .upsert(
+      { project_id: projectId, tier, threshold_mins: thresholdMins },
+      { onConflict: "project_id,tier" },
+    )
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message, success: false };
+  revalidatePath("/settings");
+  return { error: null, success: true, tierId: data.id };
+}
+
+export async function addEscalationRecipient(tierId: string, resourceId: string): Promise<SimpleActionState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/sign-in");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("sla_escalation_recipients")
+    .upsert({ tier_id: tierId, resource_id: resourceId }, { onConflict: "tier_id,resource_id" });
+
+  if (error) return { error: error.message, success: false };
+  revalidatePath("/settings");
+  return { error: null, success: true };
+}
+
+export async function removeEscalationRecipient(recipientId: string): Promise<SimpleActionState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/sign-in");
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("sla_escalation_recipients").delete().eq("id", recipientId);
+  if (error) return { error: error.message, success: false };
+
   revalidatePath("/settings");
   return { error: null, success: true };
 }

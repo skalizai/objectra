@@ -4,6 +4,7 @@ import TicketCreatedEmail from "@/emails/ticket-created-email";
 import TicketAssignedEmail from "@/emails/ticket-assigned-email";
 import TicketStatusEmail from "@/emails/ticket-status-email";
 import SlaAlertEmail from "@/emails/sla-alert-email";
+import SlaEscalationEmail from "@/emails/sla-escalation-email";
 import { CRITICALITY_COLOR } from "@/emails/components/criticality";
 import type { EmailType, Ticket } from "@/lib/types/database";
 
@@ -272,6 +273,54 @@ export async function notifySlaAlert(ticketId: string, isWarning: boolean) {
     } catch (err) {
       await logEmailFailure(admin, "sla_alert", email, subject, project.id, err);
     }
+  }
+}
+
+/** Called by the sla-scan job for a tier whose threshold_mins has been
+ * crossed by a still-open ticket. One broadcast email to the whole tier's
+ * recipient list (they're an escalation group by design — seeing each
+ * other on the email is fine, same spirit as a distribution list) rather
+ * than one send per recipient. Recipients are resolved straight from
+ * resources.email — no login required, this is an FYI, not ticket
+ * ownership, so an uninvited resource can still be on the list. */
+export async function notifySlaEscalation(
+  ticketId: string,
+  tier: string,
+  recipientEmails: string[],
+): Promise<void> {
+  if (!process.env.RESEND_API_KEY || recipientEmails.length === 0) return;
+  const admin = createAdminClient();
+
+  const { data: ticketRow } = await admin.from("tickets").select("*").eq("id", ticketId).maybeSingle();
+  if (!ticketRow) return;
+  const ticket = ticketRow as Ticket;
+
+  const { data: project } = await admin.from("projects").select("id, name").eq("id", ticket.project_id).maybeSingle();
+  if (!project) return;
+
+  const hoursOpen = Math.max(1, Math.round((Date.now() - new Date(ticket.created_at).getTime()) / 3600000));
+  const toEmail = recipientEmails.join(", ");
+  const subject = `${tier} escalation: ${ticket.ticket_no ?? "Ticket"} open ${hoursOpen}h — ${ticket.subject}`;
+
+  try {
+    const result = await getResendClient().emails.send({
+      from: EMAIL_FROM,
+      to: recipientEmails,
+      subject,
+      react: SlaEscalationEmail({
+        tier,
+        ticketNo: ticket.ticket_no ?? "",
+        subject: ticket.subject,
+        projectName: project.name,
+        criticality: ticket.criticality,
+        createdAt: ticket.created_at,
+        hoursOpen,
+        appUrl: APP_URL,
+      }),
+    });
+    await logEmail(admin, "sla_escalation", toEmail, subject, project.id, result);
+  } catch (err) {
+    await logEmailFailure(admin, "sla_escalation", toEmail, subject, project.id, err);
   }
 }
 
