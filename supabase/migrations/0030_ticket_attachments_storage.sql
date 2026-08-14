@@ -15,7 +15,12 @@ insert into storage.buckets (id, name, public)
 values ('ticket-attachments', 'ticket-attachments', false)
 on conflict (id) do nothing;
 
-alter table storage.objects enable row level security;
+-- storage.objects is a Supabase-managed system table (owned by an internal
+-- storage role, not the project's postgres role) with RLS already enabled
+-- by default when the Storage extension is provisioned — attempting
+-- `alter table storage.objects enable row level security` here fails with
+-- "must be owner of table objects" on a hosted project. Only the policies
+-- below are needed; RLS itself is already on.
 
 create policy ticket_attachments_insert_pending on storage.objects
   for insert with check (

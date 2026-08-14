@@ -8,9 +8,11 @@ export interface SlaScanResult {
   warningsFlagged: number;
 }
 
-/** Runs every 30 min (section 18): flags tickets past sla_due_at as
- * breached, and tickets within 25% of their remaining SLA window as
- * "due soon". Idempotent by design — sla_breach_alerted_at /
+/** Runs daily (section 18 specs every 30 min, but this project is on
+ * Vercel's Hobby plan, which only allows daily cron schedules — see
+ * vercel.json; revisit if/when upgraded to Pro): flags tickets past
+ * sla_due_at as breached, and tickets within 25% of their remaining SLA
+ * window as "due soon". Idempotent by design — sla_breach_alerted_at /
  * sla_warning_alerted_at (set here, cleared by raiser_close_or_reopen_ticket
  * on reopen and recomputed by tickets_auto_route on create) mean a given
  * breach/warning episode is only ever alerted once. */
