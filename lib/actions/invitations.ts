@@ -1,5 +1,6 @@
 "use server";
 
+import { randomInt } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,11 +16,27 @@ export interface InviteResourceState {
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
-/** Sends the actual login invite for an already-saved resource (see
- * lib/actions/resources.ts) — the separate second step the roster's
- * "Invite" button triggers: creates the auth account, project_members
- * entry, and emails the action link, then links the resource row to the
- * new profile so the roster shows it as invited. */
+// Excludes visually ambiguous characters (0/O, 1/l/I) since this gets
+// typed by hand from an email, not pasted from a password manager.
+const PASSWORD_CHARSET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+
+function generatePassword(length = 12): string {
+  let password = "";
+  for (let i = 0; i < length; i++) password += PASSWORD_CHARSET[randomInt(PASSWORD_CHARSET.length)];
+  return password;
+}
+
+/**
+ * Creates the login for an already-saved resource, and grants them access
+ * to the given project — or, if they're already invited, resets their
+ * password and re-sends it (safe to run repeatedly: lost the email, adding
+ * them to a second project, etc).
+ *
+ * Unlike the original "click a link, set your own password" flow, this
+ * generates the password itself and emails it directly alongside the
+ * login email, so the resource can sign in immediately with no separate
+ * acceptance step.
+ */
 export async function inviteResourceRecord(
   resourceId: string,
   _prevState: InviteResourceState,
@@ -46,33 +63,24 @@ export async function inviteResourceRecord(
   if (!project) return { error: "Project not found or not accessible.", success: false };
 
   const resourceRow = resource as Resource;
-
-  const { data: invitation, error: inviteError } = await supabase
-    .from("invitations")
-    .insert({
-      org_id: viewer.profile.org_id,
-      project_id: projectId,
-      email: resourceRow.email,
-      full_name: resourceRow.full_name,
-      role,
-      allocation_pct: allocationPct,
-      invited_by: viewer.user.id,
-    })
-    .select("id, token")
-    .single();
-
-  if (inviteError || !invitation) {
-    return { error: inviteError?.message ?? "Could not create invitation.", success: false };
-  }
-
   const admin = createAdminClient();
-  const nextPath = `/accept-invite?invite=${invitation.token}`;
+  const password = generatePassword();
+  const isResend = !!resourceRow.profile_id;
+  let userId = resourceRow.profile_id;
 
-  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-    type: "invite",
-    email: resourceRow.email,
-    options: {
-      data: {
+  if (isResend && userId) {
+    const { error: updateError } = await admin.auth.admin.updateUserById(userId, { password });
+    if (updateError) return { error: updateError.message, success: false };
+  } else {
+    // Inserts into auth.users directly, which fires handle_new_user() the
+    // same as the old generateLink({type:'invite'}) path did — just with a
+    // real password set and the email pre-confirmed, so there's no
+    // separate "click the link, set a password" step.
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: resourceRow.email,
+      password,
+      email_confirm: true,
+      user_metadata: {
         org_id: viewer.profile.org_id,
         full_name: resourceRow.full_name,
         is_org_admin: false,
@@ -81,16 +89,44 @@ export async function inviteResourceRecord(
         primary_module: resourceRow.primary_module,
         location: resourceRow.location,
       },
-      redirectTo: `${APP_URL}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
-    },
-  });
-
-  if (linkError || !linkData) {
-    return { error: linkError?.message ?? "Could not generate invite link.", success: false };
+    });
+    if (createError || !created.user) {
+      return { error: createError?.message ?? "Could not create the login.", success: false };
+    }
+    userId = created.user.id;
   }
 
-  const actionUrl = linkData.properties.action_link;
-  const subject = `You're invited to ${project.name} on Objectra Labs`;
+  // Same effect as accept_invitation()'s project-membership branch
+  // (0002_functions_triggers.sql), applied immediately with the
+  // service-role client instead of waiting for the invitee to accept a
+  // link themselves.
+  if (role === "org_admin") {
+    await admin.from("profiles").update({ is_org_admin: true }).eq("id", userId);
+  } else {
+    await admin
+      .from("project_members")
+      .upsert(
+        { project_id: projectId, profile_id: userId, role, allocation_pct: allocationPct, is_active: true },
+        { onConflict: "project_id,profile_id" },
+      );
+  }
+
+  // Kept for audit history (who was granted what role, when) — there's no
+  // "pending" window with this flow, so it's recorded as already accepted.
+  await admin.from("invitations").insert({
+    org_id: viewer.profile.org_id,
+    project_id: projectId,
+    email: resourceRow.email,
+    full_name: resourceRow.full_name,
+    role,
+    allocation_pct: allocationPct,
+    invited_by: viewer.user.id,
+    status: "accepted",
+  });
+
+  const subject = isResend
+    ? `Your Objectra Labs password was reset`
+    : `You're invited to ${project.name} on Objectra Labs`;
 
   try {
     const sendResult = await getResendClient().emails.send({
@@ -102,7 +138,10 @@ export async function inviteResourceRecord(
         inviterName: viewer.profile.full_name,
         projectName: project.name,
         role,
-        actionUrl,
+        loginEmail: resourceRow.email,
+        password,
+        signInUrl: `${APP_URL}/sign-in`,
+        isResend,
       }),
     });
 
@@ -131,13 +170,7 @@ export async function inviteResourceRecord(
     return { error: "Failed to send invite email.", success: false };
   }
 
-  // linkData.user is the freshly-created (unconfirmed) auth user —
-  // generateLink({type:'invite'}) creates the account immediately, which
-  // fires handle_new_user() and gives us a profiles row to link right away.
-  await admin
-    .from("resources")
-    .update({ profile_id: linkData.user.id, invite_status: "invited" })
-    .eq("id", resourceId);
+  await admin.from("resources").update({ profile_id: userId, invite_status: "invited" }).eq("id", resourceId);
 
   revalidatePath("/resources");
   return { error: null, success: true };

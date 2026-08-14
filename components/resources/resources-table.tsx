@@ -11,20 +11,24 @@ import type { InvitationRole } from "@/lib/types/database";
 
 const LOCATION_LABEL: Record<string, string> = { onsite: "Onsite", offshore: "Offshore" };
 
-type TypeTab = "all" | "pmo" | "functional" | "technical";
+type TypeTab = "all" | "pmo" | "functional" | "technical" | "super_user";
 const TYPE_TABS: { key: TypeTab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "pmo", label: "PMO Team" },
   { key: "functional", label: "Functional" },
   { key: "technical", label: "Technical" },
+  { key: "super_user", label: "Super User" },
 ];
 
 // consultant_type is now a free-text Settings → Project Roles value, not a
 // fixed enum, so "PMO Team" isn't one specific role — it's everyone who
-// isn't tagged Functional or Technical (PMO, Project Manager, or any other
-// custom role an admin adds later).
+// isn't tagged Functional, Technical, or Super User (PMO, Project Manager,
+// or any other custom role an admin adds later). "Super User" itself has
+// to be added once as a Project Role value from Settings before it'll show
+// up as a pick in "Add resource" — same as Functional/Technical/PMO were.
 const isFunctional = (v: string | null) => (v ?? "").trim().toLowerCase() === "functional";
 const isTechnical = (v: string | null) => (v ?? "").trim().toLowerCase() === "technical";
+const isSuperUser = (v: string | null) => (v ?? "").trim().toLowerCase() === "super user";
 
 // Pre-selects the invite's project access level from the roster's Project
 // Role tag, so PMO/Project Manager resources land in the weekly digest's
@@ -35,6 +39,7 @@ function defaultInviteRole(consultantType: string | null): InvitationRole {
   const value = (consultantType ?? "").trim().toLowerCase();
   if (value === "pmo") return "pmo";
   if (value === "project manager") return "project_manager";
+  if (value === "super user") return "super_user";
   return "member";
 }
 
@@ -69,11 +74,15 @@ export function ResourcesTable({
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
+  const isPmoBucket = (r: ResourceWithAllocation) =>
+    !isFunctional(r.consultant_type) && !isTechnical(r.consultant_type) && !isSuperUser(r.consultant_type);
+
   const counts = {
     all: rows.length,
-    pmo: rows.filter((r) => !isFunctional(r.consultant_type) && !isTechnical(r.consultant_type)).length,
+    pmo: rows.filter(isPmoBucket).length,
     functional: rows.filter((r) => isFunctional(r.consultant_type)).length,
     technical: rows.filter((r) => isTechnical(r.consultant_type)).length,
+    super_user: rows.filter((r) => isSuperUser(r.consultant_type)).length,
   };
   const filteredRows =
     tab === "all"
@@ -82,7 +91,9 @@ export function ResourcesTable({
         ? rows.filter((r) => isFunctional(r.consultant_type))
         : tab === "technical"
           ? rows.filter((r) => isTechnical(r.consultant_type))
-          : rows.filter((r) => !isFunctional(r.consultant_type) && !isTechnical(r.consultant_type));
+          : tab === "super_user"
+            ? rows.filter((r) => isSuperUser(r.consultant_type))
+            : rows.filter(isPmoBucket);
 
   return (
     <div>
@@ -179,22 +190,26 @@ export function ResourcesTable({
                 <td className="px-4 py-2.5 text-text-2">{LOCATION_LABEL[resource.location ?? ""] ?? "—"}</td>
 
                 <td className="px-4 py-2.5">
-                  {resource.invite_status === "invited" ? (
-                    <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--status-live)" }}>
-                      <IconCircleCheck size={14} />
-                      Invited
-                    </span>
-                  ) : canInvite ? (
-                    <InviteButton
-                      resourceId={resource.id}
-                      resourceName={resource.full_name}
-                      defaultAllocationPct={resource.allocation_pct ?? 50}
-                      defaultRole={defaultInviteRole(resource.consultant_type)}
-                      projectOptions={projectOptions}
-                    />
-                  ) : (
-                    <span className="text-xs text-text-3">Not invited</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {resource.invite_status === "invited" && (
+                      <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--status-live)" }}>
+                        <IconCircleCheck size={14} />
+                        Invited
+                      </span>
+                    )}
+                    {canInvite ? (
+                      <InviteButton
+                        resourceId={resource.id}
+                        resourceName={resource.full_name}
+                        defaultAllocationPct={resource.allocation_pct ?? 50}
+                        defaultRole={defaultInviteRole(resource.consultant_type)}
+                        projectOptions={projectOptions}
+                        resend={resource.invite_status === "invited"}
+                      />
+                    ) : (
+                      resource.invite_status !== "invited" && <span className="text-xs text-text-3">Not invited</span>
+                    )}
+                  </div>
                 </td>
 
                 {canInvite && (

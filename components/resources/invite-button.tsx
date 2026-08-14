@@ -19,12 +19,17 @@ export function InviteButton({
   defaultAllocationPct,
   defaultRole = "member",
   projectOptions,
+  resend = false,
 }: {
   resourceId: string;
   resourceName: string;
   defaultAllocationPct: number;
   defaultRole?: InvitationRole;
   projectOptions: { id: string; name: string }[];
+  /** True once already invited — same action, just resets their password
+   * and re-sends rather than creating a fresh login. Safe to run as many
+   * times as needed (lost email, adding to another project, etc). */
+  resend?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const boundAction = inviteResourceRecord.bind(null, resourceId);
@@ -34,14 +39,15 @@ export function InviteButton({
     <>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="gap-1.5">
         <IconMailFast size={14} />
-        Invite
+        {resend ? "Resend" : "Invite"}
       </Button>
 
-      <Drawer open={open} onClose={() => setOpen(false)} title={`Invite ${resourceName}`}>
+      <Drawer open={open} onClose={() => setOpen(false)} title={`${resend ? "Resend login for" : "Invite"} ${resourceName}`}>
         <form action={formAction} className="space-y-4">
           <p className="text-xs text-text-3">
-            Sends a login invite for this project. Once accepted, {resourceName} will see only their
-            assigned objects and can update status against them.
+            {resend
+              ? `Resets ${resourceName}'s password and emails the new one along with their sign-in email — use this if they lost it, or to add them to another project.`
+              : `Creates a login and emails ${resourceName} their sign-in email and password directly — no separate "set a password" step. Once signed in, they'll see only their assigned objects/tickets, and can update status and add comments.`}
           </p>
 
           {state.error && (
@@ -59,7 +65,7 @@ export function InviteButton({
               style={{ borderColor: "var(--status-live)", color: "var(--status-live)" }}
             >
               <IconCircleCheck size={16} className="mt-0.5 shrink-0" />
-              Invite sent.
+              {resend ? "New login sent." : "Invite sent."}
             </div>
           )}
 
@@ -109,7 +115,7 @@ export function InviteButton({
           </div>
 
           <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? "Sending invite…" : "Send invite"}
+            {pending ? "Sending…" : resend ? "Reset & resend login" : "Send invite"}
           </Button>
         </form>
       </Drawer>
