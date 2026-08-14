@@ -2,6 +2,7 @@ import { LandingNav } from "@/components/landing/nav";
 import { Hero } from "@/components/landing/hero";
 import { FeatureGrid } from "@/components/landing/feature-grid";
 import { PipelinePreview } from "@/components/landing/pipeline-preview";
+import { TicketFlowPreview } from "@/components/landing/ticket-flow-preview";
 import { ResourcesFlow } from "@/components/landing/resources-flow";
 import { ArchitectureSection } from "@/components/landing/architecture";
 import { CtaBand } from "@/components/landing/cta-band";
@@ -14,6 +15,7 @@ export default function LandingPage() {
       <main className="flex-1">
         <Hero />
         <PipelinePreview />
+        <TicketFlowPreview />
         <FeatureGrid />
         <ResourcesFlow />
         <ArchitectureSection />

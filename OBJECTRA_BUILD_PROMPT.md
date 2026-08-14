@@ -67,12 +67,17 @@ Test RLS explicitly (see acceptance criteria) — this is the security boundary,
 
 ## 6. Auth & invitation flow
 
+**As shipped, this deviates from the original "click a link, set your own password" design below — see the note at the end of this section.**
+
 1. **Seed** an org (Yash Technologies) and one **org_admin** (email + password) in `supabase/seed.sql`.
-2. A PM/admin creates a **resource profile** on a project: name, email, role, allocation %. Server action inserts an `invitations` row, then calls `supabase.auth.admin.generateLink({ type: 'invite', email })` to get the action link and **sends it via Resend** using a branded React Email template (so delivery + branding is Resend, identity is Supabase Auth).
-3. Invitee clicks the link → `/accept-invite` → sets their password. On signup, `handle_new_user` creates their `profiles` row; a follow-up server action consumes the matching `invitations` row to create the `project_members` entry (role + allocation) and any pending `object_assignments`, then marks the invite `accepted`.
-4. They land in the app seeing **only their assigned objects** (My work).
+2. A PM/admin creates a **resource** on the org roster (name, email, type, role, area, location, allocation %) — no login yet, just a roster entry (`resources` table). Assigning them to objects or naming them in ticket routing works immediately, without waiting for an invite (see section 16's routing note).
+3. Whenever the PM/admin is ready, they **invite** that resource to a specific project + access level from the Resources page. The invite action generates a password server-side, calls `supabase.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: {...} })` (which still fires `handle_new_user()` to create the `profiles` row, same as before), grants the chosen `project_members` role immediately via the service-role client (the same effect `accept_invitation()` used to produce, just applied at invite time instead of on the invitee's own action), and **emails the login email + password directly via Resend** using a branded template — no separate "set a password" step, they can sign in right away.
+4. Inviting an **already-invited** resource again (e.g. lost the email, or adding them to a second project) is safe to repeat: it resets their password via `admin.auth.admin.updateUserById()` and re-sends new credentials, rather than failing.
+5. They land in the app seeing **only their assigned objects/tickets** (My work), and can update status and comment on both.
 
 Sessions via `@supabase/ssr` in middleware; protect all `/app/**` routes; redirect unauthenticated users to `/sign-in`.
+
+> **Why the deviation:** emailing a generated password directly is a weaker security pattern than a self-service "set your own password" link (email isn't a fully trusted channel, and there's no in-app password-change screen yet for the invitee to rotate it themselves) — but it's simpler to operate for an internal delivery-tracking tool, and was an explicit, deliberate choice made after the fact. `accept_invitation()` (section 2 functions) and `/accept-invite` still exist in the schema/codebase but are no longer in the active invite path — nothing currently calls them.
 
 ## 7. Automated email (Resend + Vercel Cron)
 
@@ -106,14 +111,14 @@ Full dark mode, "console" shell (persistent left sidebar + top bar), modern and 
 ## 9. Screens
 
 **Public (unauthenticated)**
-- **Landing** (`/`) — dark, animated marketing page: nav (Platform, Resources, Pricing, Sign in, Get started), hero with animated headline + counters, a floating product-preview card, feature grid (Any project/any object · Resource allocation % · Automated emails · See only what's yours), footer. This is the page everyone sees first.
+- **Landing** (`/`) — dark, animated marketing page: nav (Platform, Resources, Pricing, Sign in, Get started), hero with animated headline + counters, a floating product-preview card, an animated "watch an object move through the pipeline" section, **an animated "hypercare tickets, worked and watched live" section** (added post-ticketing-launch — same traveling-card/lane mechanic as the object pipeline preview, themed for tickets: a ticket hops New → Assigned → In Progress → Resolved with a live SLA countdown that reaches zero exactly as it lands on Resolved, `components/landing/ticket-flow-preview.tsx`), feature grid (Any project/any object · Resource allocation % · Automated emails · See only what's yours), footer. This is the page everyone sees first.
 - **Sign in** (`/sign-in`), **Accept invite / set password** (`/accept-invite`).
 
 **App (authenticated, console shell)**
 - **Dashboard** — org level for admins (portfolio across projects), project level for PMs: KPIs (total, live, in-flight, at-risk), status-distribution donut, objects-by-module bar, wave progress, deadline monitor.
 - **Projects** — list + create project (name, client, code, target go-live, PM).
 - **Project workspace** with tabbed views: **Objects register** (search, filter by module/type/status/wave/owner, sort, detail drawer with all fields), **Pipeline board** (kanban by stage), **Assignments** (PM inline-edits developer/stage/due date/note, add object, deadline-monitor tiles, audit trail).
-- **Resources** — directory of people with skills and **allocation %** per project; capacity view flags anyone over 100% across active projects; "Invite resource" action → the flow in section 6.
+- **Resources** — directory of people with skills and **allocation %** per project; capacity view flags anyone over 100% across active projects; "Invite resource" action → the flow in section 6 (as-built: emails credentials directly, and stays clickable — labeled "Resend" — after the first invite, so a lost email or adding someone to a second project doesn't require a workaround). Type tabs are All / PMO Team / Functional / Technical, **plus a Super User tab** added for the ticketing role (section 15) — "Super User" itself has to be added once as a Project Role value from Settings, same self-service step Functional/Technical/PMO already require. The invite Access-level dropdown splits "Member" into "Technical Consultant"/"Functional Consultant" labels for clarity (both still grant identical `member`-role access — not a new permission tier).
 - **My work** — member view: only their assigned objects, grouped by due/urgency; they can update status + notes on their own objects.
 - **Client view** — read-only project status (progress, milestones, no internal notes).
 - **Settings** — project email/notification settings (deadline lead days, weekly digest day, recipients, send-test-digest), org profile, member management.
@@ -147,3 +152,111 @@ Billing/subscriptions, SSO/SAML, in-app chat/comments threads, mobile native app
 7. My work (member) + Client view.
 8. Email jobs (deadline scan, weekly digest) + Vercel Cron + settings.
 9. Audit log, email log, polish, responsive + a11y pass.
+
+# Addendum — Post-Go-Live Support Ticketing (Hypercare)
+
+Paste this at the end of the Objectra build prompt. It extends sections 3–11 of the base spec; where a section number is referenced below, treat the content as an amendment to that section. Everything else in the base spec (stack, design system, RLS-first approach) applies unchanged.
+
+---
+
+## 14. What the ticketing module is
+
+Once a project (or a wave within it) goes live, the same project switches into **support mode**: designated **super users** on the client side raise **incidents** against a module, tag a **criticality level**, and the ticket **auto-routes to the consultant(s) already mapped to that module** in the project. Consultants work the ticket through a defined lifecycle; PMs and admins watch everything on a **support dashboard**. All of it lives inside the existing project workspace — no separate app.
+
+## 15. Roles (amends section 3)
+
+Add one project-scoped role to `project_members.role`:
+
+- **super_user** — a client-side key user. Can **raise incidents** on their project, view **their own tickets** (full detail + comment thread), and view a read-only summary of their project's support health. Cannot see internal notes, other users' tickets, the objects register, or resource data.
+
+Existing roles gain ticketing abilities:
+
+- **member** (consultant) — sees tickets **assigned to them** (in addition to their assigned objects), updates ticket status, logs resolution notes and comments, records effort.
+- **project_manager** — sees all tickets on their project, can reassign/re-route, edit routing rules, change criticality, close/reopen tickets, manage SLA settings.
+- **org_admin** — everything, across projects.
+- **client** — read-only support summary (ticket counts, SLA health) on their project; no ticket detail unless they are also a super_user.
+
+## 16. Data model (amends section 4)
+
+All tables follow the base conventions (`id uuid`, `created_at`, `updated_at`, RLS on).
+
+- **projects** — add `phase` (enum: `implementation | hypercare | support`, default `implementation`) and `go_live_date date`. Ticket creation is enabled when phase is `hypercare` or `support` (PM can toggle).
+- **support_routing** — per-project routing table: `project_id`, `module` (text, matches the `module` values used on objects), `primary_consultant_id` (**resource**, not profile — see note below), `backup_consultant_id` (nullable resource), `is_active`. Unique (`project_id`, `module`). Eligibility (enforced with a trigger) only requires the resource to belong to the project's org — **not** that they've accepted an invite yet.
+
+  > **As-built change:** the addendum originally specified `primary_consultant_id`/`backup_consultant_id` as profile references, requiring the consultant to already be an active, invited project member before a routing rule could name them. In practice this blocked PMs from setting up a project's routing during initial setup, before anyone had been formally invited. Migration `0031_routing_uses_resources.sql` retargets both columns to `resources(id)` instead — the same "assign before invite" pattern `object_assignments` already uses (section 4/migration 0013 of the base schema) — so a rule can name **any org resource, invited or not**. `tickets_auto_route()` resolves the matched resource's `profile_id` (their actual login) at ticket-creation time; if they haven't been invited yet, the ticket falls back to the PM exactly as if no rule existed, and the rule starts firing correctly the moment they are invited — no reconfiguration needed.
+- **tickets** — `project_id`, `ticket_no` (human-readable, per-project sequence e.g. `YT-INC-00042`, generated by a DB trigger), `module`, `criticality` (enum: `P1_critical | P2_high | P3_medium | P4_low`), `subject`, `description`, `category` (enum: `incident | service_request | question`, default `incident`), `status` (enum: `new | assigned | in_progress | pending_user | resolved | closed | reopened`), `raised_by` (profile), `assigned_to` (profile, set by routing), `related_object_id` (nullable FK to `objects` — optionally link the incident to the WRICEF object it concerns), `attachment_paths text[]` (Supabase Storage, bucket `ticket-attachments`), `resolution_note`, `effort_hours numeric`, `first_response_at`, `resolved_at`, `closed_at`, `reopen_count int default 0`, `sla_due_at timestamptz` (computed on create from criticality + SLA settings), `sla_breached bool` (computed).
+- **ticket_comments** — `ticket_id`, `author_id`, `body`, `is_internal bool` (internal comments visible to consultants/PM/admin only — **never** to super users or clients), `attachment_paths text[]`.
+- **ticket_events** — status/assignment timeline: `ticket_id`, `event` (created/assigned/status_change/reassigned/criticality_change/sla_breach/reopened), `old_value`, `new_value`, `actor_id`, `occurred_at`. Written by triggers/server actions; powers the ticket's activity feed.
+- **sla_policies** — per project: `criticality`, `response_mins`, `resolve_mins`. Seed defaults: P1 = 1h/4h, P2 = 4h/24h, P3 = 24h/72h, P4 = 48h/1wk. Unique (`project_id`, `criticality`).
+- **notification_settings** — add `ticket_emails_enabled` (default true) and `sla_alerts_enabled` (default true).
+- **email_log** — extend `type` enum with `ticket_created | ticket_assigned | ticket_status | sla_alert`.
+
+**Auto-routing rule (server action `create_ticket`):** on insert, look up `support_routing` for (`project_id`, `module`) → set `assigned_to` = primary consultant (backup if primary `is_active = false` or no longer a project member); status → `assigned`. If no routing row exists, leave `new` and assign to the project PM, and flag "unrouted" on the dashboard so the PM adds a rule. Compute `sla_due_at` from the project's `sla_policies`.
+
+## 17. RLS (amends section 5)
+
+New helper: `is_ticket_participant(tid)` — true if caller raised the ticket, is its `assigned_to`, or is PM/org_admin on its project.
+
+- **tickets — SELECT:** `is_org_admin()` OR project_manager of the project OR `raised_by = auth.uid()` OR `assigned_to = auth.uid()`. → A **super user sees only tickets they raised**; a consultant sees only tickets assigned to them. Clients get no row-level ticket access (their summary view is served by an aggregate RPC that returns counts only).
+- **tickets — INSERT:** super_user / project_manager / org_admin on that project, and only when the project `phase` allows tickets. `raised_by` forced to `auth.uid()` via trigger.
+- **tickets — UPDATE:** org_admin/PM full; **assigned consultant** may update only `status`, `resolution_note`, `effort_hours` (column-guarded policy or RPC `consultant_update_ticket`); **raiser** may update only status transitions `resolved → closed` (accept fix) or `resolved → reopened` (with a required comment), via RPC.
+- **ticket_comments — SELECT:** participants; rows with `is_internal = true` visible only to consultant/PM/admin. **INSERT:** participants (super users cannot set `is_internal`).
+- **ticket_events:** read for participants + PM/admin; insert via triggers/service role only.
+- **support_routing / sla_policies:** read for project members; write for org_admin + that project's PM.
+- **Storage:** `ticket-attachments` bucket policies mirror ticket SELECT — only participants of the ticket can read its files.
+
+Prove it the same way as objects: a direct SQL test that a super user **cannot** select another user's ticket, and a consultant cannot select a ticket assigned to someone else.
+
+## 18. Ticket emails (amends section 7)
+
+Branded React Email templates via Resend, all logged to `email_log`, respecting `notification_settings`:
+
+- **On create/route (event-driven, from the server action — not cron):** email the assigned consultant (+ PM) with ticket no, module, criticality, subject, SLA due; confirmation email to the raiser.
+- **On status change / reassignment:** notify the raiser (external-safe content only) and the newly assigned consultant.
+- **`/api/jobs/sla-scan`** — cron: find open tickets past `sla_due_at` (or within 25% of remaining time for a "due soon" warning), set `sla_breached`, write a `sla_breach` event, and email the assigned consultant + PM. One grouped email per recipient per run; idempotent — never re-alert a ticket already flagged unless it re-enters breach after reopen (`sla_breach_alerted_at`/`sla_warning_alerted_at` on `tickets`, cleared on reopen).
+
+  > **As-built change:** runs **daily** (`0 6 * * *` in `vercel.json`), not every 30 min/hourly as originally specified — the Vercel project is on the Hobby plan, which rejects any cron schedule that fires more than once a day. Revisit the cadence if the project moves to Pro.
+- **Weekly digest** (existing job) — add a support section when the project is in hypercare/support: opened vs resolved this week, open by criticality, SLA compliance %, oldest open ticket.
+
+## 19. Screens (amends section 9)
+
+Inside the project workspace, a new **Support** tab (visible when phase is hypercare/support, or to PM/admin always):
+
+- **Support dashboard** — KPI tiles (open, unrouted, breaching SLA, resolved this week, avg first-response, avg resolution), donut by status, bar by module, bar by criticality, aging buckets (0–1d / 1–3d / 3–7d / 7d+), and a live ticket table (search, filter by module/criticality/status/assignee, sort; row click opens the detail drawer). Reuses the register's table + drawer patterns, Recharts, Framer Motion stagger.
+- **Ticket detail drawer/page** — header with `ticket_no` + criticality pill + SLA countdown, description + attachments, comment thread (internal comments visually distinct, brass "internal" tag, hidden from super users), status timeline from `ticket_events`, consultant actions (status, resolution note, effort), PM actions (reassign, re-route, criticality).
+- **Raise ticket** (super user) — focused form: module (dropdown sourced from the org's module picklist), criticality with plain-language descriptions, subject, description, attachments. On submit: toast with ticket number + "routed to your <module> consultant". (As-built: the "optional related object" field was dropped from this form per explicit request — `tickets.related_object_id` still exists in the schema/action for future use, just not exposed in this form.) Only enabled while the project's phase is hypercare/support — the button/form is hidden otherwise, and the server action itself also checks phase and returns a plain-language error rather than a raw RLS failure if reached anyway (e.g. a stale page).
+- **My tickets** — super user: their raised tickets grouped by open/resolved. Consultant: **My work gains a "My tickets" section** alongside assigned objects, sorted by SLA urgency.
+- **Settings → Support** — phase toggle + go-live date, routing table editor (module → primary/backup consultant; as-built, the picker lists the **full org resource roster**, not just already-invited project members — see section 16's routing note; whoever matches the chosen module sorts to the top and shows their tag), SLA policy editor, ticket email toggles, "send test ticket email".
+
+**Design:** same locked dark system. Criticality pills: P1 `#F0574B` · P2 `#E0A340` · P3 `#4C8DF6` · P4 `#7A8492` (1.5px border on transparent fill, like status pills). Ticket numbers, SLA timers and timestamps in IBM Plex Mono. A small 24px rounded-square glyph with the module's initial echoes the WRICEF-glyph language.
+
+## 20. Acceptance criteria (amends section 11)
+
+- PM flips a project to `hypercare`, sets routing (module → consultant, pickable from the full org roster regardless of invite status — section 16) and SLA policies.
+- A super user raises a P2 incident for module "MM" → ticket auto-assigns to the mapped MM consultant, gets a sequential `ticket_no`, `sla_due_at` is computed, both consultant and raiser receive branded Resend emails, all logged in `email_log`.
+- RLS proven by direct query: super user cannot select another raiser's ticket; consultant cannot select a ticket assigned to someone else; internal comments never returned to a super user.
+- Consultant updates status → `ticket_events` records it and the raiser is notified; raiser can close or reopen a resolved ticket (reopen requires a comment and increments `reopen_count`).
+- A ticket with no routing rule lands on the PM and shows in the dashboard's "unrouted" tile.
+- `/api/jobs/sla-scan` flags a breached ticket exactly once, emails consultant + PM, and is idempotent on re-run.
+- Support dashboard KPIs, charts, filters and aging buckets reflect seeded test tickets; drawer, animations, mobile drawer and reduced-motion behave per the design system.
+
+## 21. Build order (amends section 13 — insert after step 8)
+
+8a. Migrations: `phase`/`go_live_date`, tickets + routing + SLA + comments + events tables, sequence trigger, **RLS + SQL tests**.
+8b. Routing + SLA settings UI, raise-ticket flow, ticket detail with comments/timeline.
+8c. Support dashboard + My tickets integration.
+8d. Ticket emails (event-driven) + `sla-scan` cron + digest support section.
+
+## 22. Non-goals for the ticketing v1
+
+External email-to-ticket ingestion, a public portal for non-invited users, CSAT surveys, knowledge base, escalation matrices beyond primary/backup, and integration with external ITSM tools (ServiceNow/Jira SM) — design the `tickets` schema so an external reference id can be added later.
+
+## 23. Implementation notes (post-launch fixes and corrections)
+
+Recorded here rather than silently — kept for whoever next touches this code.
+
+- **`storage.objects` RLS gotcha:** don't run `alter table storage.objects enable row level security` against a hosted Supabase project — it's a Supabase-managed system table (owned by an internal storage role), already RLS-enabled by default, and the `ALTER` fails with `must be owner of table objects`. Only the `create policy ... on storage.objects` statements are needed/allowed.
+- **NULL-propagation bugs found and fixed during build**, all following the same shape (a plpgsql `IF` treats `NULL` as false, so a nullable comparison like `tk.assigned_to <> auth.uid()` silently *passes* an authorization check when the column is null instead of correctly rejecting the caller): `consultant_update_ticket()` and `raiser_close_or_reopen_ticket()` now use `IS DISTINCT FROM`; `ticket_comments_guard()` now wraps each sub-check in `coalesce(..., false)` since `is_project_editor()`/`project_role()` return `NULL` (not `false`) for a caller with no active `project_members` row at all. Worth checking for the same pattern in any future RPC that gates on a nullable column.
+- **Pre-existing bug fixed in passing:** `supabase/seed.sql` set the sample project's `pm_id` to a `profiles.id` — `projects.pm_id` was repointed to `resources.id` back in migration `0016_project_pm_uses_resources.sql`, so the seed's own FK was broken and `db:reset` failed before this feature's seed additions could even run. Fixed to insert/use a `resources` row for the seeded admin.
+- **Still-open pre-existing bug, not touched:** `member_update_object()` (base schema, section 5) still checks the pre-`0013` `object_assignments.profile_id` column, which no longer exists (assignments were repointed to `resource_id`) — it likely fails today for any member self-updating an assigned object. Unaffected by anything in this addendum (the ticket RPCs were written correctly from scratch), flagged here since it was noticed along the way.
+- **`supabase/tests/rls_smoke_test.sql`** (the original, non-ticket smoke test) is similarly stale for the same `object_assignments.profile_id` reason — `supabase/tests/tickets_rls_smoke_test.sql` (this addendum's own test) is written correctly against the current schema and is unaffected.
