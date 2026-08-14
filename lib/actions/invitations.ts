@@ -26,6 +26,20 @@ function generatePassword(length = 12): string {
   return password;
 }
 
+/** Fallback for "A user with this email address has already been
+ * registered" — this happens when an auth account exists but
+ * resources.profile_id never got linked to it (e.g. an earlier invite
+ * attempt created the account and then failed/was interrupted before the
+ * final `resources` update at the bottom of this file). The admin API has
+ * no direct "get user by email", so this pages through listUsers() and
+ * matches by email — fine at this org's scale, not meant for a
+ * huge user base. */
+async function findAuthUserByEmail(admin: ReturnType<typeof createAdminClient>, email: string) {
+  const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error || !data) return null;
+  return data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase()) ?? null;
+}
+
 /**
  * Creates the login for an already-saved resource, and grants them access
  * to the given project — or, if they're already invited, resets their
@@ -65,10 +79,14 @@ export async function inviteResourceRecord(
   const resourceRow = resource as Resource;
   const admin = createAdminClient();
   const password = generatePassword();
-  const isResend = !!resourceRow.profile_id;
   let userId = resourceRow.profile_id;
+  // Tracks what actually happened (not just resourceRow.profile_id going
+  // in) — the fallback below can turn a "first-time invite" attempt into a
+  // password reset for an account that already existed, and the email
+  // copy/subject should reflect what really occurred.
+  let isResend = !!resourceRow.profile_id;
 
-  if (isResend && userId) {
+  if (userId) {
     const { error: updateError } = await admin.auth.admin.updateUserById(userId, { password });
     if (updateError) return { error: updateError.message, success: false };
   } else {
@@ -90,10 +108,23 @@ export async function inviteResourceRecord(
         location: resourceRow.location,
       },
     });
-    if (createError || !created.user) {
-      return { error: createError?.message ?? "Could not create the login.", success: false };
+
+    if (created?.user) {
+      userId = created.user.id;
+    } else {
+      // "A user with this email address has already been registered" (or
+      // similar) — the account exists but this resource's profile_id link
+      // was lost somewhere. Find it and reset its password instead of
+      // failing outright.
+      const existing = await findAuthUserByEmail(admin, resourceRow.email);
+      if (!existing) {
+        return { error: createError?.message ?? "Could not create the login.", success: false };
+      }
+      const { error: updateError } = await admin.auth.admin.updateUserById(existing.id, { password });
+      if (updateError) return { error: updateError.message, success: false };
+      userId = existing.id;
+      isResend = true;
     }
-    userId = created.user.id;
   }
 
   // Same effect as accept_invitation()'s project-membership branch
