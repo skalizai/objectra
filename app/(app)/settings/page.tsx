@@ -41,7 +41,7 @@ export default async function SettingsPage({
   let selectedProject: Project | null = null;
   let supportRouting: Awaited<ReturnType<typeof getSupportRouting>> = [];
   let slaPolicies: Awaited<ReturnType<typeof getSlaPolicies>> = [];
-  let consultantOptions: { id: string; full_name: string }[] = [];
+  let consultantOptions: { id: string; full_name: string; primary_module: string | null }[] = [];
   if (selectedProjectId) {
     const [{ data }, { data: projectRow }, routing, policies, { data: memberRows }] = await Promise.all([
       supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
@@ -50,7 +50,7 @@ export default async function SettingsPage({
       getSlaPolicies(selectedProjectId),
       supabase
         .from("project_members")
-        .select("profile:profiles(id, full_name)")
+        .select("profile:profiles(id, full_name, primary_module)")
         .eq("project_id", selectedProjectId)
         .eq("is_active", true)
         .in("role", ["member", "technical_lead", "project_manager"]),
@@ -59,9 +59,13 @@ export default async function SettingsPage({
     selectedProject = projectRow;
     supportRouting = routing;
     slaPolicies = policies;
-    consultantOptions = ((memberRows ?? []) as unknown as { profile: { id: string; full_name: string } | null }[])
+    consultantOptions = (
+      (memberRows ?? []) as unknown as {
+        profile: { id: string; full_name: string; primary_module: string | null } | null;
+      }[]
+    )
       .map((m) => m.profile)
-      .filter((p): p is { id: string; full_name: string } => !!p);
+      .filter((p): p is { id: string; full_name: string; primary_module: string | null } => !!p);
   }
 
   // Needed for the notification form's "statuses to include" checklist

@@ -9,7 +9,7 @@ import type { SupportRouting } from "@/lib/types/database";
 const selectClass =
   "h-8 rounded-[7px] border border-border-2 bg-surface-2 px-2 text-xs text-text-2 focus:border-brass focus-visible:outline-none";
 
-type ConsultantOption = { id: string; full_name: string };
+type ConsultantOption = { id: string; full_name: string; primary_module: string | null };
 
 export function SupportRoutingForm({
   projectId,
@@ -57,6 +57,20 @@ export function SupportRoutingForm({
     return consultantOptions.find((c) => c.id === id)?.full_name ?? "—";
   }
 
+  // Only offer consultants tagged with the module being routed — a
+  // functional/technical resource's primary_module (Settings → Resources)
+  // is what auto-routing is actually mapping against, so an SD consultant
+  // showing up as a candidate for an MM rule would just be noise.
+  const eligibleConsultants = newModule
+    ? consultantOptions.filter((c) => (c.primary_module ?? "").trim().toLowerCase() === newModule.trim().toLowerCase())
+    : [];
+
+  function handleModuleChange(module: string) {
+    setNewModule(module);
+    setNewPrimary("");
+    setNewBackup("");
+  }
+
   return (
     <div className="rounded-card border border-border bg-surface p-5" style={{ boxShadow: "var(--shadow-card)" }}>
       <h3 className="font-display text-sm font-semibold">Ticket routing</h3>
@@ -82,22 +96,37 @@ export function SupportRoutingForm({
       </ul>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <select className={selectClass} value={newModule} onChange={(e) => setNewModule(e.target.value)}>
+        <select className={selectClass} value={newModule} onChange={(e) => handleModuleChange(e.target.value)}>
           <option value="">Module…</option>
           {modules.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
-        <select className={selectClass} value={newPrimary} onChange={(e) => setNewPrimary(e.target.value)}>
-          <option value="">Primary…</option>
-          {consultantOptions.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+        <select
+          className={selectClass}
+          value={newPrimary}
+          onChange={(e) => setNewPrimary(e.target.value)}
+          disabled={!newModule}
+        >
+          <option value="">{newModule ? "Primary…" : "Pick a module first"}</option>
+          {eligibleConsultants.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
         </select>
-        <select className={selectClass} value={newBackup} onChange={(e) => setNewBackup(e.target.value)}>
-          <option value="">Backup (optional)…</option>
-          {consultantOptions.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+        <select
+          className={selectClass}
+          value={newBackup}
+          onChange={(e) => setNewBackup(e.target.value)}
+          disabled={!newModule}
+        >
+          <option value="">{newModule ? "Backup (optional)…" : "Pick a module first"}</option>
+          {eligibleConsultants.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
         </select>
         <Button size="sm" variant="outline" onClick={addRow} disabled={!newModule || !newPrimary}>
           Add rule
         </Button>
       </div>
+      {newModule && eligibleConsultants.length === 0 && (
+        <p className="mt-2 text-xs text-text-3">
+          No project member is tagged with primary module &quot;{newModule}&quot; yet — set it from Resources.
+        </p>
+      )}
     </div>
   );
 }
