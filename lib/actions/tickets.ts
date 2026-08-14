@@ -64,6 +64,16 @@ export async function createTicket(
 
   const supabase = await createClient();
 
+  // The UI already hides "Raise ticket" unless the project is in
+  // hypercare/support, but a stale page (drawer left open across a phase
+  // change, a second tab, etc.) can still reach this action — check here
+  // too so that case gets a clear message instead of the tickets_insert
+  // RLS policy's raw "row violates row-level security policy" error.
+  const { data: project } = await supabase.from("projects").select("phase").eq("id", projectId).maybeSingle();
+  if (project && project.phase !== "hypercare" && project.phase !== "support") {
+    return { error: "Tickets can't be raised while this project is in Implementation phase — ask your PM to switch it to Hypercare or Support first." };
+  }
+
   // raised_by/ticket_no/assigned_to/status/sla_due_at are all set by the
   // tickets_01_set_ticket_no / tickets_02_auto_route triggers — never
   // supplied by the client.
@@ -81,7 +91,15 @@ export async function createTicket(
     .select("*")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) {
+    // Safety net for any other RLS path this didn't already catch (e.g. the
+    // caller's project role changed since the page loaded) — never surface
+    // raw Postgres/PostgREST error text to the user.
+    if (error.message.toLowerCase().includes("row-level security")) {
+      return { error: "You don't have permission to raise a ticket on this project right now." };
+    }
+    return { error: error.message };
+  }
   const ticket = inserted as Ticket;
 
   if (pendingPaths.length > 0) {
