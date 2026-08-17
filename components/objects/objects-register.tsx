@@ -35,18 +35,34 @@ export function ObjectsRegister({
   const [moduleFilter, setModuleFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<ObjectType | "all">("all");
   const [statusFilter, setStatusFilter] = useState<ObjectStatus | "all">("all");
+  // Local copy of `objects` for optimistic title edits — see PipelineBoard
+  // for why the resync happens during render rather than in an effect.
+  const [items, setItems] = useState(objects);
+  const [prevObjects, setPrevObjects] = useState(objects);
+  if (objects !== prevObjects) {
+    setPrevObjects(objects);
+    setItems(objects);
+  }
+
   const [selected, setSelected] = useState<ObjectWithAssignees | null>(null);
+  // Keep the open drawer's title in sync with the row if it's patched while
+  // still selected, same reasoning as PipelineBoard's selectedLive.
+  const selectedLive = selected ? items.find((o) => o.id === selected.id) ?? null : null;
+
+  function handleTitleChange(objectId: string, title: string) {
+    setItems((prev) => prev.map((o) => (o.id === objectId ? { ...o, title } : o)));
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return objects.filter((o) => {
+    return items.filter((o) => {
       if (q && !`${o.title} ${o.wricef_id ?? ""}`.toLowerCase().includes(q)) return false;
       if (moduleFilter !== "all" && o.module !== moduleFilter) return false;
       if (typeFilter !== "all" && o.object_type !== typeFilter) return false;
       if (statusFilter !== "all" && o.status !== statusFilter) return false;
       return true;
     });
-  }, [objects, search, moduleFilter, typeFilter, statusFilter]);
+  }, [items, search, moduleFilter, typeFilter, statusFilter]);
 
   const selectClass =
     "h-9 rounded-control border border-border-2 bg-surface-2 px-2.5 text-sm text-text-2 focus:border-brass focus-visible:outline-none";
@@ -152,11 +168,12 @@ export function ObjectsRegister({
       </div>
 
       <ObjectDetailDrawer
-        object={selected}
+        object={selectedLive}
         projectId={projectId}
         canEdit={canEdit}
         resources={resources}
         onClose={() => setSelected(null)}
+        onTitleChange={handleTitleChange}
       />
     </div>
   );

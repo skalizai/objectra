@@ -46,6 +46,10 @@ export function PipelineBoard({
     void updateObjectByManager(objectId, projectId, { status });
   }
 
+  function handleTitleChange(objectId: string, title: string) {
+    setItems((prev) => prev.map((o) => (o.id === objectId ? { ...o, title } : o)));
+  }
+
   // Only show a lane for statuses that currently have an object in them —
   // derived from `items` (not the full statuses picklist), so moving the
   // last object out of a lane drops it immediately, and moving one into a
@@ -118,6 +122,7 @@ export function PipelineBoard({
         canEdit={canEdit}
         resources={resources}
         onClose={() => setSelected(null)}
+        onTitleChange={handleTitleChange}
       />
     </>
   );

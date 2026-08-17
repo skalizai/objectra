@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FocusEvent } from "react";
 import { Drawer } from "@/components/ui/drawer";
 import { WricefGlyph } from "@/components/ui/wricef-glyph";
 import { Label } from "@/components/ui/input";
@@ -79,11 +79,13 @@ function ObjectDetailForm({
   projectId,
   canEdit,
   resources,
+  onTitleChange,
 }: {
   object: ObjectWithAssignees;
   projectId: string;
   canEdit: boolean;
   resources: ResourceOption[];
+  onTitleChange?: (objectId: string, title: string) => void;
 }) {
   const modules = useModules();
   const complexities = useComplexities();
@@ -95,6 +97,13 @@ function ObjectDetailForm({
   function patch(fields: Parameters<typeof updateObjectByManager>[2]) {
     setLocal((prev) => ({ ...prev, ...fields }));
     void updateObjectByManager(local.id, projectId, fields);
+  }
+
+  function handleTitleBlur(e: FocusEvent<HTMLInputElement>) {
+    const title = e.target.value.trim();
+    if (!title || title === local.title) return;
+    patch({ title });
+    onTitleChange?.(local.id, title);
   }
 
   function handleAssign(role: AssignedRole, resourceId: string | null) {
@@ -117,6 +126,21 @@ function ObjectDetailForm({
           <div className="text-sm text-text">{local.object_type}</div>
           <div className="font-mono text-xs text-text-3">{local.wricef_id || "Generating…"}</div>
         </div>
+      </div>
+
+      <div>
+        <Label>Title</Label>
+        {canEdit ? (
+          <input
+            type="text"
+            defaultValue={local.title}
+            onBlur={handleTitleBlur}
+            placeholder="Object title"
+            className={selectClass}
+          />
+        ) : (
+          <p className="text-sm text-text-2">{local.title}</p>
+        )}
       </div>
 
       <div>
@@ -297,17 +321,26 @@ export function ObjectDetailDrawer({
   canEdit,
   resources,
   onClose,
+  onTitleChange,
 }: {
   object: ObjectWithAssignees | null;
   projectId: string;
   canEdit: boolean;
   resources: ResourceOption[];
   onClose: () => void;
+  onTitleChange?: (objectId: string, title: string) => void;
 }) {
   return (
     <Drawer open={!!object} onClose={onClose} title={object?.title ?? ""} width={480}>
       {object && (
-        <ObjectDetailForm key={object.id} object={object} projectId={projectId} canEdit={canEdit} resources={resources} />
+        <ObjectDetailForm
+          key={object.id}
+          object={object}
+          projectId={projectId}
+          canEdit={canEdit}
+          resources={resources}
+          onTitleChange={onTitleChange}
+        />
       )}
     </Drawer>
   );
