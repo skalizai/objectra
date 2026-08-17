@@ -8,14 +8,13 @@ import { Input, Label } from "@/components/ui/input";
 import { useCompanyCodes, useComplexities, useDevTypes, useModules } from "@/components/providers/picklist-provider";
 import { updateBacklogItem, deleteBacklogItem, updateBacklogStatus, moveToObjects, type FormActionState } from "@/lib/actions/backlog";
 import { BacklogStatusPill } from "@/components/backlog/backlog-status-pill";
-import type { BacklogItemStatus, BacklogItemWithCost } from "@/lib/types/database";
+import type { BacklogItem, BacklogItemStatus } from "@/lib/types/database";
 
 const initialState: FormActionState = { error: null };
 const selectClass =
   "h-10 w-full rounded-control border border-border-2 bg-surface-2 px-3 text-sm text-text focus:border-brass focus-visible:outline-none";
-const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
-function StatusActions({ item, projectId, onDone }: { item: BacklogItemWithCost; projectId: string; onDone: () => void }) {
+function StatusActions({ item, projectId, onDone }: { item: BacklogItem; projectId: string; onDone: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +69,7 @@ function BacklogItemForm({
   onSaved,
   onDeleted,
 }: {
-  item: BacklogItemWithCost;
+  item: BacklogItem;
   projectId: string;
   canEdit: boolean;
   onSaved: () => void;
@@ -102,15 +101,10 @@ function BacklogItemForm({
         <BacklogStatusPill status={item.status} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 rounded-control border border-border-2 bg-surface-2 px-3 py-2.5 text-xs text-text-2 sm:grid-cols-4">
-        <div><div className="text-text-3">Dev</div><div className="font-medium text-text">{money(item.dev_cost)}</div></div>
-        <div><div className="text-text-3">Fiori</div><div className="font-medium text-text">{money(item.fiori_cost)}</div></div>
-        <div><div className="text-text-3">PMO</div><div className="font-medium text-text">{money(item.pmo_cost)}</div></div>
-        <div><div className="text-text-3">PGLS</div><div className="font-medium text-text">{money(item.pgls_cost)}</div></div>
-        <div className="col-span-2 sm:col-span-4 border-t border-border pt-2">
-          <span className="text-text-3">Total</span>{" "}
-          <span className="font-medium text-text">{item.total_days.toFixed(1)}d · {money(item.total_cost)}</span>
-        </div>
+      <div className="grid grid-cols-3 gap-3 rounded-control border border-border-2 bg-surface-2 px-3 py-2.5 text-xs text-text-2">
+        <div><div className="text-text-3">Dev</div><div className="font-medium text-text">{item.dev_days.toFixed(1)}d</div></div>
+        <div><div className="text-text-3">Fiori</div><div className="font-medium text-text">{item.fiori_days.toFixed(1)}d</div></div>
+        <div><div className="text-text-3">Functional</div><div className="font-medium text-text">{item.func_days.toFixed(1)}d</div></div>
       </div>
 
       {item.status === "moved_to_objects" && (
@@ -302,7 +296,7 @@ export function BacklogItemDrawer({
   onClose,
   onChanged,
 }: {
-  item: BacklogItemWithCost | null;
+  item: BacklogItem | null;
   projectId: string;
   canEdit: boolean;
   onClose: () => void;

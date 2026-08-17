@@ -442,29 +442,8 @@ export type BacklogItemStatus =
   | "on_hold"
   | "moved_to_objects";
 
-/** Per-project rate card driving every backlog cost calculation — the
- * single source of truth a PM edits from Settings -> Backlog. */
-export interface BacklogRateSettings {
-  id: string;
-  project_id: string;
-  tech_rate: number;
-  func_rate: number;
-  pmo_rate: number;
-  fiori_rate: number;
-  hours_per_day: number;
-  monthly_hours: number;
-  pmo_half_time_factor: number;
-  project_months: number;
-  pgls_months: number;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Raw row shape as stored in the DB. Dev/Fiori/Functional hours+cost are
- * real columns (pure per-row math). PMO cost, PGLS cost, Total Days, and
- * Total Cost are deliberately absent here -- they depend on the current
- * count of registered items in the project and are computed at read time
- * by lib/data/backlog.ts::getBacklogItems(), not stored. */
+/** Effort-in-days only -- no rate card, no cost figures anywhere in this
+ * feature (removed post-launch at the user's request). */
 export interface BacklogItem {
   id: string;
   project_id: string;
@@ -478,14 +457,8 @@ export interface BacklogItem {
   complexity: string | null;
   go_live_critical: boolean;
   dev_days: number;
-  dev_hours: number;
-  dev_cost: number;
   fiori_days: number;
-  fiori_hours: number;
-  fiori_cost: number;
   func_days: number;
-  func_hours: number;
-  func_cost: number;
   status: BacklogItemStatus;
   cr_no: string | null;
   sent_for_approval_at: string | null;
@@ -496,14 +469,6 @@ export interface BacklogItem {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
-}
-
-/** BacklogItem plus the read-time-computed allocation fields. */
-export interface BacklogItemWithCost extends BacklogItem {
-  pmo_cost: number;
-  pgls_cost: number;
-  total_days: number;
-  total_cost: number;
 }
 
 // Minimal Database shape for @supabase/ssr's generic client typing.

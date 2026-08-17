@@ -15,9 +15,7 @@ import { ProjectPhaseToggle } from "@/components/settings/project-phase-toggle";
 import { SupportRoutingForm } from "@/components/settings/support-routing-form";
 import { SlaPolicyForm } from "@/components/settings/sla-policy-form";
 import { SlaEscalationForm } from "@/components/settings/sla-escalation-form";
-import { BacklogRateSettingsForm } from "@/components/settings/backlog-rate-settings-form";
 import { getSupportRouting, getSlaPolicies, getSlaEscalationTiers } from "@/lib/data/support";
-import { getBacklogRateSettings } from "@/lib/data/backlog";
 import type { NotificationSettings, Project } from "@/lib/types/database";
 import type { MemberWithMemberships } from "@/lib/data/members";
 
@@ -46,9 +44,8 @@ export default async function SettingsPage({
   let slaPolicies: Awaited<ReturnType<typeof getSlaPolicies>> = [];
   let slaEscalationTiers: Awaited<ReturnType<typeof getSlaEscalationTiers>> = [];
   let consultantOptions: { id: string; full_name: string; email: string; primary_module: string | null }[] = [];
-  let backlogRates: Awaited<ReturnType<typeof getBacklogRateSettings>> | null = null;
   if (selectedProjectId) {
-    const [{ data }, { data: projectRow }, routing, policies, escalationTiers, { data: resourceRows }, rates] =
+    const [{ data }, { data: projectRow }, routing, policies, escalationTiers, { data: resourceRows }] =
       await Promise.all([
         supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
         supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
@@ -66,7 +63,6 @@ export default async function SettingsPage({
           .select("id, full_name, email, primary_module")
           .eq("org_id", viewer.profile.org_id)
           .order("full_name"),
-        getBacklogRateSettings(selectedProjectId),
       ]);
     settings = data;
     selectedProject = projectRow;
@@ -74,7 +70,6 @@ export default async function SettingsPage({
     slaPolicies = policies;
     slaEscalationTiers = escalationTiers;
     consultantOptions = resourceRows ?? [];
-    backlogRates = rates;
   }
 
   // Needed for the notification form's "statuses to include" checklist
@@ -139,7 +134,6 @@ export default async function SettingsPage({
                 tiers={slaEscalationTiers}
                 consultantOptions={consultantOptions}
               />
-              {backlogRates && <BacklogRateSettingsForm projectId={selectedProjectId} rates={backlogRates} />}
             </>
           )}
         </div>

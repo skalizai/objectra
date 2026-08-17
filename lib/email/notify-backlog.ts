@@ -1,8 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient, EMAIL_FROM } from "@/lib/email/resend";
-import { withComputedCost } from "@/lib/data/backlog";
 import BacklogApprovalEmail, { type BacklogApprovalItem } from "@/emails/backlog-approval-email";
-import type { BacklogItem, BacklogRateSettings } from "@/lib/types/database";
+import type { BacklogItem } from "@/lib/types/database";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
@@ -55,8 +54,10 @@ async function getClientRecipients(admin: Admin, projectId: string) {
 
 /** Fires from sendForApproval() right after the selected items flip to
  * 'sent_for_approval' -- event-driven, mirroring notifyTicketCreated().
- * One email per client recipient, each listing every selected item plus
- * batch totals, gated on notification_settings.backlog_emails_enabled. */
+ * One email per client recipient, each listing every selected item's
+ * Dev/Functional/Fiori effort in days plus batch totals (no cost figures
+ * -- this feature is effort-in-days only), gated on
+ * notification_settings.backlog_emails_enabled. */
 export async function notifyBacklogApprovalRequest(
   projectId: string,
   itemIds: string[],
@@ -75,19 +76,8 @@ export async function notifyBacklogApprovalRequest(
   const { data: project } = await admin.from("projects").select("id, name").eq("id", projectId).maybeSingle();
   if (!project) return;
 
-  // PMO/PGLS cost depends on every registered item in the project (a
-  // project-wide pool divided across the current count), not just the
-  // ones being emailed this round -- fetch the full set and reuse the
-  // exact same computation getBacklogItems() uses, so the email's totals
-  // never drift from what the register shows.
-  const [{ data: rateRow }, { data: allItemRows }] = await Promise.all([
-    admin.from("backlog_rate_settings").select("*").eq("project_id", projectId).maybeSingle(),
-    admin.from("backlog_items").select("*").eq("project_id", projectId),
-  ]);
-  if (!rateRow) return;
-
-  const computed = withComputedCost((allItemRows ?? []) as BacklogItem[], rateRow as BacklogRateSettings);
-  const items = computed.filter((item) => itemIds.includes(item.id));
+  const { data: itemRows } = await admin.from("backlog_items").select("*").in("id", itemIds);
+  const items = (itemRows ?? []) as BacklogItem[];
   if (items.length === 0) return;
 
   const emailItems: BacklogApprovalItem[] = items.map((item) => ({
@@ -97,11 +87,11 @@ export async function notifyBacklogApprovalRequest(
     devType: item.dev_type,
     description: item.description,
     complexity: item.complexity,
-    totalDays: item.total_days,
-    totalCost: item.total_cost,
+    devDays: item.dev_days,
+    funcDays: item.func_days,
+    fioriDays: item.fiori_days,
   }));
-  const totalDays = emailItems.reduce((sum, i) => sum + i.totalDays, 0);
-  const totalCost = emailItems.reduce((sum, i) => sum + i.totalCost, 0);
+  const totalDays = emailItems.reduce((sum, i) => sum + i.devDays + i.funcDays + i.fioriDays, 0);
 
   const recipients = await getClientRecipients(admin, projectId);
   if (recipients.length === 0) return;
@@ -120,7 +110,6 @@ export async function notifyBacklogApprovalRequest(
           crNo,
           items: emailItems,
           totalDays,
-          totalCost,
           appUrl: APP_URL,
         }),
       });

@@ -1,7 +1,7 @@
 import { EmailShellV2, V2 } from "./components/shell-v2";
 
 const FONT = "Helvetica, Arial, sans-serif";
-const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
+const fmtDays = (n: number) => `${n.toFixed(1)}d`;
 
 export interface BacklogApprovalItem {
   itemNo: string;
@@ -10,8 +10,9 @@ export interface BacklogApprovalItem {
   devType: string | null;
   description: string;
   complexity: string | null;
-  totalDays: number;
-  totalCost: number;
+  devDays: number;
+  funcDays: number;
+  fioriDays: number;
 }
 
 export interface BacklogApprovalEmailProps {
@@ -20,11 +21,11 @@ export interface BacklogApprovalEmailProps {
   crNo: string;
   items: BacklogApprovalItem[];
   totalDays: number;
-  totalCost: number;
   appUrl: string;
 }
 
 function ItemRow({ item, isLast }: { item: BacklogApprovalItem; isLast: boolean }) {
+  const itemTotal = item.devDays + item.funcDays + item.fioriDays;
   return (
     <tr>
       <td style={{ padding: "16px 20px", borderBottom: isLast ? "none" : `1px solid ${V2.borderLight}` }}>
@@ -34,7 +35,7 @@ function ItemRow({ item, isLast }: { item: BacklogApprovalItem; isLast: boolean 
               {item.itemNo} · {item.module || "—"} {item.companyCode ? `· ${item.companyCode}` : ""}
             </td>
             <td align="right" style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: V2.heading, lineHeight: "18px" }}>
-              {money(item.totalCost)}
+              {fmtDays(itemTotal)}
             </td>
           </tr>
         </table>
@@ -42,7 +43,7 @@ function ItemRow({ item, isLast }: { item: BacklogApprovalItem; isLast: boolean 
           {item.description}
         </div>
         <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, lineHeight: "18px", paddingTop: 4 }}>
-          {item.devType || "—"} · {item.complexity || "—"} complexity · {item.totalDays.toFixed(1)} days
+          {item.devType || "—"} · {item.complexity || "—"} complexity · Dev {fmtDays(item.devDays)} · Functional {fmtDays(item.funcDays)} · Fiori {fmtDays(item.fioriDays)}
         </div>
       </td>
     </tr>
@@ -52,7 +53,8 @@ function ItemRow({ item, isLast }: { item: BacklogApprovalItem; isLast: boolean 
 /** Client-facing batch approval request -- fires from sendForApproval()
  * when a PM sends a set of registered backlog items to the client. Same
  * list-row shape as WeeklyDigestEmail's ObjectList, one send per client
- * recipient (project_members role='client'). */
+ * recipient (project_members role='client'). Effort-in-days only -- no
+ * cost/rate figures anywhere in this feature. */
 export default function BacklogApprovalEmail({
   recipientName = "there",
   projectName = "Acme S/4HANA Rollout",
@@ -65,17 +67,17 @@ export default function BacklogApprovalEmail({
       devType: "Enhancement",
       description: "Custom field on the PO header screen",
       complexity: "Medium",
-      totalDays: 6,
-      totalCost: 2826,
+      devDays: 4,
+      funcDays: 2,
+      fioriDays: 0,
     },
   ],
   totalDays = 6,
-  totalCost = 2826,
   appUrl = "https://objectra.app",
 }: BacklogApprovalEmailProps) {
   return (
     <EmailShellV2
-      preview={`${crNo}: ${items.length} backlog item${items.length === 1 ? "" : "s"} awaiting your approval — ${totalDays.toFixed(1)} days, ${money(totalCost)}`}
+      preview={`${crNo}: ${items.length} backlog item${items.length === 1 ? "" : "s"} awaiting your approval — ${totalDays.toFixed(1)} days total`}
       badge="Backlog Approval"
       appUrl={appUrl}
     >
@@ -101,27 +103,13 @@ export default function BacklogApprovalEmail({
         style={{ border: `1px solid ${V2.border}`, borderLeft: `4px solid ${V2.goldDark}`, borderRadius: 10 }}
       >
         <tr>
-          <td style={{ padding: "18px 24px" }}>
-            <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
-              <tr>
-                <td width="50%" align="center" style={{ borderRight: `1px solid ${V2.borderLight}` }}>
-                  <div className="darktext" style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: V2.heading, lineHeight: "30px" }}>
-                    {totalDays.toFixed(1)}
-                  </div>
-                  <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "16px", paddingTop: 2 }}>
-                    Total days
-                  </div>
-                </td>
-                <td width="50%" align="center">
-                  <div className="darktext" style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: V2.heading, lineHeight: "30px" }}>
-                    {money(totalCost)}
-                  </div>
-                  <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "16px", paddingTop: 2 }}>
-                    Total cost (USD)
-                  </div>
-                </td>
-              </tr>
-            </table>
+          <td style={{ padding: "18px 24px" }} align="center">
+            <div className="darktext" style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: V2.heading, lineHeight: "30px" }}>
+              {totalDays.toFixed(1)}
+            </div>
+            <div style={{ fontFamily: FONT, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "16px", paddingTop: 2 }}>
+              Total effort days
+            </div>
           </td>
         </tr>
       </table>
@@ -144,9 +132,9 @@ export default function BacklogApprovalEmail({
       </table>
 
       <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, lineHeight: "20px" }}>
-        Costs are estimated per the project&apos;s standard rate card (Technical/Functional/Fiori/PMO rates, 1 day = 8 hours),
-        including PMO and one month of post-go-live support (PGLS) allocation. Please reply to confirm approval, request
-        changes, or flag any item to defer. Approved items will be added to the project&apos;s main object scope.
+        Effort is shown in days (1 day = 8 hours), broken down by Development, Functional, and Fiori work. Please reply to
+        confirm approval, request changes, or flag any item to defer. Approved items will be added to the project&apos;s
+        main object scope.
       </div>
 
       <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">

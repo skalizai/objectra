@@ -8,9 +8,8 @@ import { useModules } from "@/components/providers/picklist-provider";
 import { BacklogStatusPill } from "@/components/backlog/backlog-status-pill";
 import { BacklogItemDrawer } from "@/components/backlog/backlog-item-drawer";
 import { sendForApproval } from "@/lib/actions/backlog";
-import type { BacklogItemStatus, BacklogItemWithCost } from "@/lib/types/database";
+import type { BacklogItem, BacklogItemStatus } from "@/lib/types/database";
 
-const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const STATUS_OPTIONS: (BacklogItemStatus | "all")[] = [
   "all", "registered", "sent_for_approval", "approved", "rejected", "on_hold", "moved_to_objects",
 ];
@@ -72,7 +71,7 @@ export function BacklogRegister({
   canEdit,
 }: {
   projectId: string;
-  items: BacklogItemWithCost[];
+  items: BacklogItem[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -81,7 +80,7 @@ export function BacklogRegister({
   const [moduleFilter, setModuleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<BacklogItemStatus | "all">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [openItem, setOpenItem] = useState<BacklogItemWithCost | null>(null);
+  const [openItem, setOpenItem] = useState<BacklogItem | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -155,8 +154,9 @@ export function BacklogRegister({
               <th className="px-4 py-2.5 font-medium">Module</th>
               <th className="px-4 py-2.5 font-medium">Type</th>
               <th className="px-4 py-2.5 font-medium">Complexity</th>
-              <th className="px-4 py-2.5 font-medium">Days</th>
-              <th className="px-4 py-2.5 font-medium">Total cost</th>
+              <th className="px-4 py-2.5 font-medium">Dev days</th>
+              <th className="px-4 py-2.5 font-medium">Func days</th>
+              <th className="px-4 py-2.5 font-medium">Fiori days</th>
               <th className="px-4 py-2.5 font-medium">CR no</th>
               <th className="px-4 py-2.5 font-medium">Status</th>
             </tr>
@@ -184,8 +184,9 @@ export function BacklogRegister({
                 <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.module || "—"}</td>
                 <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.dev_type || "—"}</td>
                 <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.complexity || "—"}</td>
-                <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{item.total_days.toFixed(1)}</td>
-                <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{money(item.total_cost)}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{item.dev_days.toFixed(1)}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{item.func_days.toFixed(1)}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{item.fiori_days.toFixed(1)}</td>
                 <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.cr_no || "—"}</td>
                 <td className="px-4 py-2.5" onClick={() => setOpenItem(item)}>
                   <BacklogStatusPill status={item.status} />

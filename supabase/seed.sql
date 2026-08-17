@@ -134,12 +134,6 @@ begin
     (v_project_id, 'P3_medium', 1440, 4320),
     (v_project_id, 'P4_low', 2880, 10080);
 
-  -- Default backlog rate card (Backlog Items Registration feature) --
-  -- matches lib/actions/projects.ts::createProject's defaults for a real
-  -- admin-created project (all columns take their table defaults).
-  insert into backlog_rate_settings (project_id)
-  values (v_project_id);
-
   -- Routes SD to the admin (a degenerate but functional fixture — the seed
   -- only has one real internal user). FI is deliberately left unrouted so
   -- the Support dashboard's "unrouted" tile has something to show out of
@@ -182,22 +176,18 @@ begin
     (v_project_id, 'Interface', 'SAP to Salesforce order sync', 'SD', 'High', 'In Progress', true, current_date + 10, 'Real-time order sync between S/4HANA and Salesforce.', v_admin_id, v_admin_id),
     (v_project_id, 'Report', 'Regional sales variance report', 'SD', 'Medium', 'Process/Pending', false, current_date + 21, 'Monthly variance report by region and material group.', v_admin_id, v_admin_id);
 
-  -- Two sample backlog items -- one normal dev item, one email/
-  -- notification-only (dev_days=0) so the PMO-half-rate/PGLS-functional-
-  -- only branch (lib/data/backlog.ts) is exercised out of the box, same
-  -- spirit as the unrouted ticket below. item_no is left null so the
-  -- auto-generation trigger fills it in; hours/cost are pre-computed here
-  -- to match backlog_rate_settings' defaults (40/45/50/40 rate, 8 hrs/day).
+  -- Two sample backlog items so the register isn't empty on first login.
+  -- item_no is left null so the auto-generation trigger fills it in.
   insert into backlog_items (
     project_id, module, dev_type, description, complexity, go_live_critical,
-    dev_days, dev_hours, dev_cost, fiori_days, fiori_hours, fiori_cost, func_days, func_hours, func_cost,
+    dev_days, fiori_days, func_days,
     status, created_by, updated_by
   )
   values
     (v_project_id, 'SD', 'Enhancement', 'Additional bank details fields on the sales order', 'Medium', false,
-     4, 32, 1280, 0, 0, 0, 2, 16, 720, 'registered', v_admin_id, v_admin_id),
+     4, 0, 2, 'registered', v_admin_id, v_admin_id),
     (v_project_id, 'FI', 'Enhancement', 'Email notification once a payment run completes', 'Low', false,
-     0, 0, 0, 0, 0, 0, 2, 16, 720, 'registered', v_admin_id, v_admin_id);
+     0, 0, 2, 'registered', v_admin_id, v_admin_id);
 
   insert into seed_ids values ('project_id', v_project_id), ('superuser_id', v_superuser_id)
   on conflict (k) do update set v = excluded.v;

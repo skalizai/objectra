@@ -4,9 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/auth/get-viewer";
-import { getBacklogRateSettings } from "@/lib/data/backlog";
 import { notifyBacklogApprovalRequest } from "@/lib/email/notify-backlog";
-import type { BacklogItemStatus, BacklogRateSettings, ObjectType } from "@/lib/types/database";
+import type { BacklogItemStatus, ObjectType } from "@/lib/types/database";
 
 export interface FormActionState {
   error: string | null;
@@ -22,31 +21,6 @@ function bandComplexity(devDays: number): string {
   if (devDays <= 8) return "Medium";
   if (devDays <= 15) return "High";
   return "Very High";
-}
-
-/** Dev/Fiori/Functional hours+cost are pure per-row math -- computed here
- * on every write so the stored columns are always consistent with the
- * project's current rate settings at the moment of the edit. (PMO/PGLS
- * cost is NOT computed here -- see lib/data/backlog.ts for why those are
- * read-time-only.) */
-function computeRowCost(
-  days: { dev: number; fiori: number; func: number },
-  rates: BacklogRateSettings,
-) {
-  const devHours = days.dev * rates.hours_per_day;
-  const fioriHours = days.fiori * rates.hours_per_day;
-  const funcHours = days.func * rates.hours_per_day;
-  return {
-    dev_days: days.dev,
-    dev_hours: devHours,
-    dev_cost: devHours * rates.tech_rate,
-    fiori_days: days.fiori,
-    fiori_hours: fioriHours,
-    fiori_cost: fioriHours * rates.fiori_rate,
-    func_days: days.func,
-    func_hours: funcHours,
-    func_cost: funcHours * rates.func_rate,
-  };
 }
 
 function readDays(formData: FormData, field: string): number {
@@ -71,7 +45,6 @@ export async function createBacklogItem(
   const complexity = String(formData.get("complexity") ?? "").trim() || bandComplexity(devDays);
 
   const supabase = await createClient();
-  const rates = await getBacklogRateSettings(projectId);
 
   const { error } = await supabase.from("backlog_items").insert({
     project_id: projectId,
@@ -85,7 +58,9 @@ export async function createBacklogItem(
     requested_by: String(formData.get("requested_by") ?? "").trim() || null,
     complexity,
     go_live_critical: formData.get("go_live_critical") === "yes",
-    ...computeRowCost({ dev: devDays, fiori: fioriDays, func: funcDays }, rates),
+    dev_days: devDays,
+    fiori_days: fioriDays,
+    func_days: funcDays,
     remarks: String(formData.get("remarks") ?? "").trim() || null,
     created_by: viewer.user.id,
     updated_by: viewer.user.id,
@@ -114,7 +89,6 @@ export async function updateBacklogItem(
   const complexity = String(formData.get("complexity") ?? "").trim() || bandComplexity(devDays);
 
   const supabase = await createClient();
-  const rates = await getBacklogRateSettings(projectId);
 
   const { error } = await supabase
     .from("backlog_items")
@@ -127,7 +101,9 @@ export async function updateBacklogItem(
       requested_by: String(formData.get("requested_by") ?? "").trim() || null,
       complexity,
       go_live_critical: formData.get("go_live_critical") === "yes",
-      ...computeRowCost({ dev: devDays, fiori: fioriDays, func: funcDays }, rates),
+      dev_days: devDays,
+      fiori_days: fioriDays,
+      func_days: funcDays,
       remarks: String(formData.get("remarks") ?? "").trim() || null,
       updated_by: viewer.user.id,
     })

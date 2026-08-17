@@ -101,12 +101,6 @@ export async function createProject(
     { project_id: project.id, criticality: "P4_low", response_mins: 2880, resolve_mins: 10080 },
   ]);
 
-  // Default backlog rate card (Backlog Items Registration feature) --
-  // seeded the same way notification_settings/sla_policies are, from app
-  // code rather than a DB default, so a PM can freely edit/replace them
-  // later from Settings -> Backlog rate card.
-  await supabase.from("backlog_rate_settings").insert({ project_id: project.id });
-
   revalidatePath("/projects");
   // /projects/[id] renders the Overview page directly (no server redirect),
   // so it's safe to land here — see the comment on ProjectCard's Link.

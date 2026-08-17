@@ -7,14 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useCompanyCodes, useComplexities, useDevTypes, useModules } from "@/components/providers/picklist-provider";
 import { createBacklogItem, type FormActionState } from "@/lib/actions/backlog";
-import type { BacklogRateSettings } from "@/lib/types/database";
-import { BacklogCostPreview, useCostPreview } from "@/components/backlog/backlog-cost-preview";
 
 const initialState: FormActionState = { error: null };
 const selectClass =
   "h-10 w-full rounded-control border border-border-2 bg-surface-2 px-3 text-sm text-text focus:border-brass focus-visible:outline-none";
 
-export function AddBacklogItemButton({ projectId, rates }: { projectId: string; rates: BacklogRateSettings }) {
+export function AddBacklogItemButton({ projectId }: { projectId: string }) {
   const modules = useModules();
   const complexities = useComplexities();
   const companyCodes = useCompanyCodes();
@@ -23,15 +21,13 @@ export function AddBacklogItemButton({ projectId, rates }: { projectId: string; 
   const boundAction = createBacklogItem.bind(null, projectId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
   const wasPending = useRef(false);
-  const preview = useCostPreview(rates);
 
   useEffect(() => {
     if (wasPending.current && !pending && !state.error) {
       setOpen(false);
-      preview.reset();
     }
     wasPending.current = pending;
-  }, [pending, state.error, preview]);
+  }, [pending, state.error]);
 
   return (
     <>
@@ -113,16 +109,16 @@ export function AddBacklogItemButton({ projectId, rates }: { projectId: string; 
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label htmlFor="dev_days">Dev days</Label>
-              <Input id="dev_days" name="dev_days" type="number" min={0} step={0.5} defaultValue={0} onChange={(e) => preview.setDevDays(Number(e.target.value))} />
+              <Label htmlFor="dev_days">Dev effort (days)</Label>
+              <Input id="dev_days" name="dev_days" type="number" min={0} step={0.5} defaultValue={0} />
             </div>
             <div>
-              <Label htmlFor="fiori_days">Fiori days</Label>
-              <Input id="fiori_days" name="fiori_days" type="number" min={0} step={0.5} defaultValue={0} onChange={(e) => preview.setFioriDays(Number(e.target.value))} />
+              <Label htmlFor="fiori_days">Fiori effort (days)</Label>
+              <Input id="fiori_days" name="fiori_days" type="number" min={0} step={0.5} defaultValue={0} />
             </div>
             <div>
-              <Label htmlFor="func_days">Functional days</Label>
-              <Input id="func_days" name="func_days" type="number" min={0} step={0.5} defaultValue={0} onChange={(e) => preview.setFuncDays(Number(e.target.value))} />
+              <Label htmlFor="func_days">Functional effort (days)</Label>
+              <Input id="func_days" name="func_days" type="number" min={0} step={0.5} defaultValue={0} />
             </div>
           </div>
 
@@ -133,8 +129,6 @@ export function AddBacklogItemButton({ projectId, rates }: { projectId: string; 
               {complexities.map((c) => <option key={c.id} value={c.value}>{c.value}</option>)}
             </select>
           </div>
-
-          <BacklogCostPreview preview={preview} />
 
           <div>
             <Label htmlFor="remarks">Remarks</Label>
