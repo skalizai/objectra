@@ -2,6 +2,8 @@
 
 import { useMemo } from "react";
 import { BacklogCategoryDonut, type CategorySlice } from "@/components/backlog/backlog-category-donut";
+import { BacklogEffortTypeBar, type EffortTypeDatum } from "@/components/backlog/backlog-effort-type-bar";
+import { BacklogModuleDaysBar, type ModuleDaysDatum } from "@/components/backlog/backlog-module-days-bar";
 import { BACKLOG_PACKAGES, type BacklogItem, type BacklogPackage } from "@/lib/types/database";
 
 // Validated against Objectra's dark chart surface (#161B22) via the
@@ -84,6 +86,29 @@ export function BacklogDashboard({
   const lobSlices = useMemo(() => toSlices(scoped.flatMap((i) => splitLob(i.lob)), lobColorMap), [scoped, lobColorMap]);
   const typeSlices = useMemo(() => toSlices(scoped.map((i) => i.dev_type || NOT_SET), typeColorMap), [scoped, typeColorMap]);
 
+  const effortTypeData = useMemo<EffortTypeDatum[]>(() => {
+    const dev = scoped.reduce((sum, i) => sum + i.dev_days, 0);
+    const fiori = scoped.reduce((sum, i) => sum + i.fiori_days, 0);
+    const func = scoped.reduce((sum, i) => sum + i.func_days, 0);
+    return [
+      { type: "Dev", days: Math.round(dev * 10) / 10 },
+      { type: "Fiori", days: Math.round(fiori * 10) / 10 },
+      { type: "Functional", days: Math.round(func * 10) / 10 },
+    ];
+  }, [scoped]);
+
+  const moduleDaysData = useMemo<ModuleDaysDatum[]>(() => {
+    const totals = new Map<string, number>();
+    for (const item of scoped) {
+      const key = item.module || NOT_SET;
+      const days = item.dev_days + item.fiori_days + item.func_days;
+      totals.set(key, (totals.get(key) ?? 0) + days);
+    }
+    return [...totals.entries()]
+      .map(([module, days]) => ({ module, days: Math.round(days * 10) / 10 }))
+      .sort((a, b) => b.days - a.days);
+  }, [scoped]);
+
   // Package-wise always reflects every item regardless of the selector --
   // scoping it to one package would just show a single 100% slice.
   const packageSlices = useMemo<CategorySlice[]>(() => {
@@ -125,6 +150,8 @@ export function BacklogDashboard({
         <BacklogCategoryDonut title="By LOB" caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} data={lobSlices} totalLabel="tags" delay={0.12} />
         <BacklogCategoryDonut title="By type" caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} data={typeSlices} totalLabel="items" delay={0.18} />
         <BacklogCategoryDonut title="By package" caption="All items, every package" data={packageSlices} totalLabel="items" delay={0.24} />
+        <BacklogEffortTypeBar data={effortTypeData} caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} delay={0.3} />
+        <BacklogModuleDaysBar data={moduleDaysData} caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} delay={0.36} />
       </div>
     </div>
   );
