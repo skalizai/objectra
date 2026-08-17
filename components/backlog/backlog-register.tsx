@@ -8,11 +8,12 @@ import { useModules } from "@/components/providers/picklist-provider";
 import { BacklogStatusPill } from "@/components/backlog/backlog-status-pill";
 import { BacklogItemDrawer } from "@/components/backlog/backlog-item-drawer";
 import { sendForApproval } from "@/lib/actions/backlog";
-import type { BacklogItem, BacklogItemStatus } from "@/lib/types/database";
+import { BACKLOG_PACKAGES, type BacklogItem, type BacklogItemStatus, type BacklogPackage } from "@/lib/types/database";
 
 const STATUS_OPTIONS: (BacklogItemStatus | "all")[] = [
   "all", "registered", "sent_for_approval", "approved", "rejected", "on_hold", "moved_to_objects",
 ];
+const PACKAGE_OPTIONS: (BacklogPackage | "all")[] = ["all", ...BACKLOG_PACKAGES];
 
 function SendForApprovalBar({
   projectId,
@@ -79,6 +80,7 @@ export function BacklogRegister({
   const [search, setSearch] = useState("");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<BacklogItemStatus | "all">("all");
+  const [packageFilter, setPackageFilter] = useState<BacklogPackage | "all">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openItem, setOpenItem] = useState<BacklogItem | null>(null);
 
@@ -88,9 +90,10 @@ export function BacklogRegister({
       if (q && !`${i.description} ${i.item_no ?? ""}`.toLowerCase().includes(q)) return false;
       if (moduleFilter !== "all" && i.module !== moduleFilter) return false;
       if (statusFilter !== "all" && i.status !== statusFilter) return false;
+      if (packageFilter !== "all" && i.package !== packageFilter) return false;
       return true;
     });
-  }, [items, search, moduleFilter, statusFilter]);
+  }, [items, search, moduleFilter, statusFilter, packageFilter]);
 
   const selectableIds = filtered.filter((i) => i.status === "registered").map((i) => i.id);
   const selectedIds = Array.from(selected).filter((id) => selectableIds.includes(id));
@@ -130,6 +133,10 @@ export function BacklogRegister({
           {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s === "all" ? "All statuses" : s.replace(/_/g, " ")}</option>)}
         </select>
 
+        <select value={packageFilter} onChange={(e) => setPackageFilter(e.target.value as BacklogPackage | "all")} className={selectClass}>
+          {PACKAGE_OPTIONS.map((p) => <option key={p} value={p}>{p === "all" ? "All packages" : p}</option>)}
+        </select>
+
         {modules.length > 0 && (
           <select value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)} className={selectClass}>
             <option value="all">All modules</option>
@@ -145,11 +152,12 @@ export function BacklogRegister({
       )}
 
       <div className="scroll-x-top overflow-x-auto rounded-card border border-border">
-        <table className="w-full min-w-[1100px] border-collapse text-sm">
+        <table className="w-full min-w-[1250px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-left text-xs text-text-3">
               {canEdit && <th className="w-10 px-4 py-2.5"></th>}
               <th className="px-4 py-2.5 font-medium">Item no</th>
+              <th className="px-4 py-2.5 font-medium">Package</th>
               <th className="px-4 py-2.5 font-medium">Description</th>
               <th className="px-4 py-2.5 font-medium">Module</th>
               <th className="px-4 py-2.5 font-medium">Type</th>
@@ -178,6 +186,7 @@ export function BacklogRegister({
                   </td>
                 )}
                 <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{item.item_no || "—"}</td>
+                <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.package || "—"}</td>
                 <td className="px-4 py-2.5" onClick={() => setOpenItem(item)}>
                   <span className="line-clamp-1 max-w-[320px] text-text">{item.description}</span>
                 </td>

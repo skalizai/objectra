@@ -442,6 +442,12 @@ export type BacklogItemStatus =
   | "on_hold"
   | "moved_to_objects";
 
+/** Fixed set of 4 delivery packages -- not an org-editable picklist, the
+ * values themselves were specified as fixed. Used to group/filter the
+ * Backlog register. */
+export const BACKLOG_PACKAGES = ["Package 1", "Package 2", "Package 3", "Package 4"] as const;
+export type BacklogPackage = (typeof BACKLOG_PACKAGES)[number];
+
 /** Effort-in-days only -- no rate card, no cost figures anywhere in this
  * feature (removed post-launch at the user's request). */
 export interface BacklogItem {
@@ -452,6 +458,7 @@ export interface BacklogItem {
   module: string | null;
   lob: string | null;
   dev_type: string | null;
+  package: BacklogPackage | null;
   description: string;
   requested_by: string | null;
   complexity: string | null;

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/auth/get-viewer";
 import { notifyBacklogApprovalRequest } from "@/lib/email/notify-backlog";
-import type { BacklogItemStatus, ObjectType } from "@/lib/types/database";
+import type { BacklogItemStatus, BacklogPackage, ObjectType } from "@/lib/types/database";
 
 export interface FormActionState {
   error: string | null;
@@ -26,6 +26,11 @@ function bandComplexity(devDays: number): string {
 function readDays(formData: FormData, field: string): number {
   const raw = Number(formData.get(field));
   return Number.isFinite(raw) && raw > 0 ? raw : 0;
+}
+
+function readPackage(formData: FormData): BacklogPackage | null {
+  const raw = String(formData.get("package") ?? "").trim();
+  return raw ? (raw as BacklogPackage) : null;
 }
 
 export async function createBacklogItem(
@@ -54,6 +59,7 @@ export async function createBacklogItem(
     module: String(formData.get("module") ?? "").trim() || null,
     lob: String(formData.get("lob") ?? "").trim() || null,
     dev_type: String(formData.get("dev_type") ?? "").trim() || null,
+    package: readPackage(formData),
     description,
     requested_by: String(formData.get("requested_by") ?? "").trim() || null,
     complexity,
@@ -97,6 +103,7 @@ export async function updateBacklogItem(
       module: String(formData.get("module") ?? "").trim() || null,
       lob: String(formData.get("lob") ?? "").trim() || null,
       dev_type: String(formData.get("dev_type") ?? "").trim() || null,
+      package: readPackage(formData),
       description,
       requested_by: String(formData.get("requested_by") ?? "").trim() || null,
       complexity,

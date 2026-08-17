@@ -309,6 +309,12 @@ Originally shipped as a one-off Excel workbook for ShiftX (see the prompt below 
 
 The initial build (above) included a full rate-card/cost-estimation layer (`backlog_rate_settings`, Dev/Fiori/Functional hours+cost, PMO/PGLS allocation computed at read time, cost figures in the register/drawer/Settings/approval email) — ported directly from the Excel workbook's calculation engine. The user asked for this to be removed entirely: no rate card, no cost/PMO/PGLS figures anywhere in the app version of this feature, effort tracked in days only. `0037_backlog_remove_cost.sql` drops the `backlog_rate_settings` table and the `dev_hours`/`dev_cost`/`fiori_hours`/`fiori_cost`/`func_hours`/`func_cost` columns from `backlog_items`. Settings → "Backlog rate card" and its form component are gone; Settings → "Backlog item types" (the `dev_type` picklist) stays, since that's unrelated to cost. The Excel workbook itself (section 27a below) is untouched — it's a separate, standalone deliverable.
 
+### 27c. Bulk import + Package field (added post-launch)
+
+All 31 items from the ShiftX backlog workbook's "Backlog Items" sheet (Description, Go-Live Critical, Type, LOB, Module, Dev/Fiori/Functional effort in days) were bulk-inserted directly via SQL into the "ShiftX – RISE with SAP S/4 HANA Implementation" project (matched by exact project name, guarded with a `raise exception` if that name doesn't resolve to exactly one project — safe-fails rather than silently landing in the wrong project). Complexity was auto-banded from Dev Days using the same thresholds `bandComplexity()` uses. Two of the source items' modules (`EWM`, `QM`) aren't yet in the org's Module picklist (Settings only had MM/SD/OTC/FI/PP seeded) — flagged as a follow-up, not fixed automatically, since picklists are self-service org config.
+
+`backlog_items` also gained a **Package** field (`0038_backlog_package.sql`): a fixed 4-value set (`Package 1`–`Package 4`, `BACKLOG_PACKAGES` in `lib/types/database.ts`) — not an org-editable picklist, since the values themselves were specified as fixed, same reasoning as `BacklogItemStatus`. Selectable in the create/edit forms and filterable (with its own column) on the register. All 31 bulk-imported items were tagged `Package 1` in the same migration (matched by project + exact description, so only those rows are touched).
+
 ### 27a. Original Excel workbook prompt (superseded by the app feature above, kept for reference)
 
 # Prompt: Add "Backlog Items – Registration" Tab with Client Approval Workflow

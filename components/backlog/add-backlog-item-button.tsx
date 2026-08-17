@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useCompanyCodes, useComplexities, useDevTypes, useModules } from "@/components/providers/picklist-provider";
 import { createBacklogItem, type FormActionState } from "@/lib/actions/backlog";
+import { BACKLOG_PACKAGES } from "@/lib/types/database";
 
 const initialState: FormActionState = { error: null };
 const selectClass =
@@ -77,6 +78,14 @@ export function AddBacklogItemButton({ projectId }: { projectId: string }) {
                 {devTypes.map((t) => <option key={t.id} value={t.value}>{t.value}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="package">Package</Label>
+            <select id="package" name="package" className={selectClass} defaultValue="">
+              <option value="">—</option>
+              {BACKLOG_PACKAGES.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
