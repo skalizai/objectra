@@ -53,6 +53,14 @@ create policy backlog_rate_settings_write on backlog_rate_settings
   for all using (is_org_admin() or is_project_editor(project_id))
   with check (is_org_admin() or is_project_editor(project_id));
 
+-- Backfill: every project created before this migration gets a default
+-- rate card immediately (all columns take their table defaults above),
+-- rather than only picking one up the first time someone edits a rate
+-- from Settings -> Backlog rate card.
+insert into backlog_rate_settings (project_id)
+select id from projects
+where id not in (select project_id from backlog_rate_settings);
+
 create table backlog_sequences (
   project_id uuid primary key references projects (id) on delete cascade,
   next_seq int not null default 1
