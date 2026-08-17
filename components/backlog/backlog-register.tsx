@@ -7,13 +7,13 @@ import { IconSearch } from "@tabler/icons-react";
 import { useModules } from "@/components/providers/picklist-provider";
 import { BacklogStatusPill } from "@/components/backlog/backlog-status-pill";
 import { BacklogItemDrawer } from "@/components/backlog/backlog-item-drawer";
+import { BacklogDashboard } from "@/components/backlog/backlog-dashboard";
 import { sendForApproval } from "@/lib/actions/backlog";
-import { BACKLOG_PACKAGES, type BacklogItem, type BacklogItemStatus, type BacklogPackage } from "@/lib/types/database";
+import type { BacklogItem, BacklogItemStatus, BacklogPackage } from "@/lib/types/database";
 
 const STATUS_OPTIONS: (BacklogItemStatus | "all")[] = [
   "all", "registered", "sent_for_approval", "approved", "rejected", "on_hold", "moved_to_objects",
 ];
-const PACKAGE_OPTIONS: (BacklogPackage | "all")[] = ["all", ...BACKLOG_PACKAGES];
 
 function SendForApprovalBar({
   projectId,
@@ -118,6 +118,8 @@ export function BacklogRegister({
 
   return (
     <div>
+      <BacklogDashboard items={items} packageFilter={packageFilter} onPackageFilterChange={setPackageFilter} />
+
       <div className="flex flex-wrap items-center gap-2 pb-4">
         <div className="relative flex-1 min-w-[200px]">
           <IconSearch size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-3" />
@@ -131,10 +133,6 @@ export function BacklogRegister({
 
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as BacklogItemStatus | "all")} className={selectClass}>
           {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s === "all" ? "All statuses" : s.replace(/_/g, " ")}</option>)}
-        </select>
-
-        <select value={packageFilter} onChange={(e) => setPackageFilter(e.target.value as BacklogPackage | "all")} className={selectClass}>
-          {PACKAGE_OPTIONS.map((p) => <option key={p} value={p}>{p === "all" ? "All packages" : p}</option>)}
         </select>
 
         {modules.length > 0 && (
