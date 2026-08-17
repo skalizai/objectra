@@ -58,7 +58,7 @@ export default async function ProjectWorkspaceLayout({
         )}
       </div>
 
-      <WorkspaceTabs projectId={project.id} showSupport={showSupport} />
+      <WorkspaceTabs projectId={project.id} showSupport={showSupport} showBacklog={canEdit} />
 
       {children}
     </div>

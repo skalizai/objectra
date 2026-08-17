@@ -288,3 +288,115 @@ The Support dashboard grew from KPI row + status donut + criticality bar + aging
 - **SLA deadline monitor** (`ticket-deadline-monitor.tsx`) — open tickets with an SLA due date, soonest (or most overdue) first, same spirit as the object dashboard's Deadline monitor.
 
 All new cards follow the existing card/motion/Recharts conventions (`rounded-card` + `shadow-card`, staggered `motion.div` entrance delays extended through 0.24→0.60 to fit the new row order, avatar-initial circles matching the Resources table's style for named lists).
+
+## 27. Backlog Items — Registration & Client Approval (added post-launch, new project-workspace tab)
+
+Originally shipped as a one-off Excel workbook for ShiftX (see the prompt below section 27a) — this section documents the real, permanent app feature built from it. PMs register newly requested items with a Dev/Fiori/Functional effort estimate, send a batch to the client for approval by email, and once approved, promote them into the real Objects register. New **Backlog** tab in the project workspace (`components/projects/workspace-tabs.tsx`), visible only to org_admin/PM/technical_lead — unlike Objects/Pipeline/Support, no other role ever sees it, since cost/margin figures stay internal.
+
+**Data model** (`supabase/migrations/0034_backlog_items.sql`):
+
+- `backlog_rate_settings` — per-project singleton rate card (`tech_rate`, `func_rate`, `pmo_rate`, `fiori_rate`, `hours_per_day`, `monthly_hours`, `pmo_half_time_factor`, `project_months`, `pgls_months`), seeded from app code in `createProject()` same as `notification_settings`/`sla_policies`. Editable at Settings → "Backlog rate card" (`components/settings/backlog-rate-settings-form.tsx`).
+- `backlog_items` — `item_no` (auto-generated `<PROJECT4>-BL-<seq5>` via `backlog_sequences` + `generate_backlog_no()`, same pattern as `ticket_no`), `company_code`/`module` (existing org picklists), `dev_type` (**new** picklist type — Settings → "Backlog item types"), `complexity` (existing `complexity` picklist, auto-banded from Dev Days but overridable), `dev/fiori/func_days/hours/cost` (hours+cost computed server-side on every write from days × current rate settings), `status` (`registered → sent_for_approval → approved/rejected/on_hold → moved_to_objects`, fixed enum not a picklist), `cr_no`, `sent_for_approval_at`, `approval_date`, `converted_object_id` (nullable FK to `objects`, set by the move action).
+- **PMO cost, PGLS cost, Total Days, and Total Cost are deliberately not stored** — PMO/PGLS is a rate-driven pool divided across every currently-registered item (excluding rejected ones), which changes for *every* row whenever any sibling is added, deleted, or a rate changes. `lib/data/backlog.ts::getBacklogItems()`/`withComputedCost()` computes them at read time across the full fetched set, same "aggregate in the data layer, not SQL" convention `getSupportDashboardData()` already uses. Items with `dev_days = 0` are treated as email/notification-only (half the standard PMO share, functional-only PGLS), same rule the Excel version used.
+- RLS (both SELECT and write): `is_org_admin() or is_project_editor(project_id)` — no `is_project_member()` read access, unlike `objects`.
+
+**Registration → approval → objects flow**:
+
+1. PM registers items from the Backlog tab (`AddBacklogItemButton`/`BacklogItemDrawer`, `lib/actions/backlog.ts::createBacklogItem`/`updateBacklogItem`) — a live Dev/Fiori/Functional cost preview updates as days are typed (`components/backlog/backlog-cost-preview.tsx`); PMO/PGLS isn't shown until after saving (depends on the final item count).
+2. PM multi-selects `registered` items in the table, enters a CR number, and sends — `sendForApproval()` bulk-transitions to `sent_for_approval` (guarded to only affect rows still actually `registered`) and fires `notifyBacklogApprovalRequest()` (`lib/email/notify-backlog.ts`), one email per client recipient (`project_members` role=`client`, same join `weekly-digest.ts` uses — no separate "client contact" concept), listing every selected item plus batch totals, gated on a new `notification_settings.backlog_emails_enabled` toggle, logged to `email_log` as `backlog_approval_request`.
+3. PM marks items `approved`/`rejected`/`on_hold` from the drawer (`updateBacklogStatus`).
+4. An approved item's "Move to objects" button (`moveToObjects()`) creates a real `objects` row and sets `status = 'moved_to_objects'` + `converted_object_id`. **Known limitation:** `dev_type` has 10 values, `objects.object_type` is a fixed 7-value enum with no Fiori/Configuration/User Exit/BAdI/Function Module equivalent — those 5 fall back to `Enhancement`, editable afterward in the Objects register.
+
+### 27a. Original Excel workbook prompt (superseded by the app feature above, kept for reference)
+
+# Prompt: Add "Backlog Items – Registration" Tab with Client Approval Workflow
+
+Copy everything below the line and paste it as your prompt (attach your project workbook when you use it).
+
+---
+
+I have a project cost workbook for ShiftX (Yash Technologies) that contains the main approved objects tab (e.g., "PTW EAM Object Wise Cost") along with the support/PGLS assumptions. I want you to add a **new tab called "Backlog Items – Registration"** to this workbook, plus the supporting pieces described below. Follow the same look and feel as the existing tabs (title banner rows, styled headers, totals row, note rows at the bottom).
+
+## 1. New Tab: "Backlog Items – Registration"
+
+This tab is where newly requested items are registered before client approval. Create it with these columns:
+
+1. **S.No** — auto sequence
+2. **Date Registered** — date format DD-MM-YYYY
+3. **Company Code** — dropdown (I will provide the list of company codes; add a "Company Code" column to the Lists tab)
+4. **Module** — dropdown from Lists tab (MM, EWM, EAM, EHS, FI, PTW, QM, SD, PP)
+5. **LOB** — text (e.g., BPC, BPP, MBF, DMCC, Electronics, All)
+6. **Type** — dropdown from Lists tab (Enhancement, Workflow, Interface, Report, Form, Fiori, Configuration, User Exit, BAdI, Function Module)
+7. **Description** — wrapped text, wide column
+8. **Requested By** — name of the requester on the client side
+9. **Complexity** — dropdown (Low, Medium, High, Very High)
+10. **Go-Live Critical** — dropdown (Yes/No)
+11. **Resources (Func+Tech+Fiori)** — number
+12. **Dev Effort (Days)** — manual input
+13. **Dev Effort (Hours)** — formula: Dev Days × 8
+14. **Dev Cost (USD)** — formula: Dev Hours × Technical Rate ($40/hr)
+15. **Fiori Effort (Days)** — manual input (0 if none)
+16. **Fiori Effort (Hours)** — formula: Fiori Days × 8
+17. **Fiori Cost (USD)** — formula: Fiori Hours × $40/hr
+18. **Functional Effort (Days)** — manual input
+19. **Functional Effort (Hours)** — formula: Functional Days × 8
+20. **Functional Cost (USD)** — formula: Functional Hours × Functional Rate ($45/hr)
+21. **PMO Cost (USD)** — formula-based allocation (see rules below)
+22. **PGLS Cost (USD)** — formula-based allocation (see rules below)
+23. **Total Days** — formula: Dev + Fiori + Functional days
+24. **Total Cost (USD)** — formula: Dev + Fiori + Functional + PMO + PGLS
+25. **Status** — dropdown: **Registered → Sent for Approval → Approved → Rejected → On Hold → Moved to Main Objects**
+26. **Sent for Approval Date** / **Approval Date** — date columns
+27. **Client Reference / CR No.** — text (e.g., CR002)
+28. **Remarks** — wrapped text
+
+## 2. Settings Tab (Project Calculation Rules)
+
+Create (or reuse) a **"Settings"** tab that holds all project rates and calculation parameters in one place. Every cost formula in the workbook must reference these cells — no hardcoded rates anywhere. Include:
+
+| Parameter | Default Value |
+|---|---|
+| Technical Rate (USD/hr) | 40 |
+| Functional Rate (USD/hr) | 45 |
+| Project Manager (PMO) Rate (USD/hr) | 50 |
+| Fiori Rate (USD/hr) | 40 (or same as Technical) |
+| Hours per Day | 8 |
+| Monthly Hours | 160 |
+| PMO Half-Time Factor | 0.5 |
+| Project Months | 3 |
+| PGLS Months | 1 |
+
+- Use **named ranges** (e.g., `TechRate`, `FuncRate`, `PMORate`, `HoursPerDay`) so formulas stay readable and changing a rate in Settings instantly recalculates the whole workbook — both the Registration tab and the main objects tab.
+- Format the Settings tab clearly with a note explaining that these values drive all cost calculations across the project.
+
+## 3. Calculation Rules (driven by Settings)
+
+- Hours = Days × `HoursPerDay`; Dev Cost = Dev Hours × `TechRate`; Fiori Cost = Fiori Hours × `FioriRate`; Functional Cost = Functional Hours × `FuncRate`.
+- **Email/notification-only items:** Dev effort and Dev cost = 0; PMO charged at half the per-item rate; PGLS covers the functional portion only (`MonthlyHours` × `FuncRate` pool).
+- **PMO Cost:** `PMORate` × `MonthlyHours` × `HalfTimeFactor` × `ProjectMonths`, allocated per item — consistent with the main tab's methodology, recalculated over the number of registered items.
+- **PGLS Cost:** `PGLSMonths` × `MonthlyHours` × (`TechRate` + `FuncRate`) allocated per item; notification items get the functional-only share.
+- Add a **Totals row** at the bottom summing all effort and cost columns, and note rows (📌) documenting the formulas, exactly like the main tab — but reference the Settings parameters by name rather than fixed dollar values.
+- Apply conditional formatting: highlight rows by Status (e.g., yellow = Sent for Approval, green = Approved, red = Rejected, blue = Moved to Main Objects) and highlight rows with Fiori effort as in my backlog sheet.
+
+## 4. Lists Tab
+
+If a Lists tab doesn't exist, create one matching my backlog workbook (Complexity, SAP Module, Go-Live Critical, Dev Type, plus the Effort Estimation Guide table: Low S 1–3 days, Medium M 4–8 days, High L 9–15 days, Very High XL 16+ days). Add a **Company Code** column. Wire all dropdowns in the Registration tab to these lists so new values flow through automatically.
+
+## 5. Client Approval Email
+
+Draft a professional email to the client that:
+- Lists all items currently in **"Sent for Approval"** status (S.No, Company Code, Module, Type, Description, Complexity, Total Days, Total Cost)
+- Shows the combined total effort (days) and total cost (USD) of the batch
+- References the CR number and states the assumptions (rates as per the Settings tab, PMO/PGLS methodology, hours-per-day convention)
+- Requests formal approval to proceed, with a note that approved items will be added to the main project scope (main objects tab) and any timeline impact
+- Keeps the tone consistent with a Yash Technologies ↔ ShiftX delivery communication
+
+## 6. Approval → Move to Main Objects
+
+When I tell you which items the client has approved:
+1. Update their Status to **Approved**, fill the Approval Date.
+2. **Copy them into the main objects tab** (e.g., "PTW EAM Object Wise Cost"), continuing the S.No sequence, mapping columns correctly, and recalculating the main tab's totals and per-item PMO/PGLS allocations so the grand totals stay correct.
+3. Change their Status in the Registration tab to **Moved to Main Objects** (do not delete them — the Registration tab is the audit trail).
+4. Refresh any summary tab (LOB-wise, Module-wise, Type, Complexity, Go-Live Critical breakdowns) to include the newly moved items.
+
+Preserve all existing data, formulas, and formatting in the workbook. Ask me before changing anything in the existing main objects tab other than appending approved items and updating totals.

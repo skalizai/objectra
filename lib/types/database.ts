@@ -23,7 +23,7 @@ export type ObjectType =
 // layer, not a fixed DB enum, so admins can maintain their own list.
 export type ObjectStatus = string;
 export type AssignedRole = "developer" | "functional";
-export type PicklistType = "module" | "complexity" | "status" | "company_code" | "stream" | "project_role";
+export type PicklistType = "module" | "complexity" | "status" | "company_code" | "stream" | "project_role" | "dev_type";
 // Free-text now — validated against picklists(type='project_role') at the
 // app layer (Settings → Project Roles), not a fixed DB enum, so admins can
 // maintain their own list (Functional, Technical, PMO, Project Manager, ...).
@@ -47,7 +47,8 @@ export type EmailType =
   | "ticket_assigned"
   | "ticket_status"
   | "sla_alert"
-  | "sla_escalation";
+  | "sla_escalation"
+  | "backlog_approval_request";
 export type EmailStatus = "sent" | "failed";
 export type DigestDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
@@ -304,6 +305,7 @@ export interface NotificationSettings {
   digest_statuses: string[];
   ticket_emails_enabled: boolean;
   sla_alerts_enabled: boolean;
+  backlog_emails_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -426,6 +428,82 @@ export interface SupportSummary {
   breaching_count: number;
   resolved_this_week: number;
   sla_compliance_pct: number;
+}
+
+// ---------------------------------------------------------------------------
+// Backlog Items — Registration & Client Approval
+// ---------------------------------------------------------------------------
+
+export type BacklogItemStatus =
+  | "registered"
+  | "sent_for_approval"
+  | "approved"
+  | "rejected"
+  | "on_hold"
+  | "moved_to_objects";
+
+/** Per-project rate card driving every backlog cost calculation — the
+ * single source of truth a PM edits from Settings -> Backlog. */
+export interface BacklogRateSettings {
+  id: string;
+  project_id: string;
+  tech_rate: number;
+  func_rate: number;
+  pmo_rate: number;
+  fiori_rate: number;
+  hours_per_day: number;
+  monthly_hours: number;
+  pmo_half_time_factor: number;
+  project_months: number;
+  pgls_months: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Raw row shape as stored in the DB. Dev/Fiori/Functional hours+cost are
+ * real columns (pure per-row math). PMO cost, PGLS cost, Total Days, and
+ * Total Cost are deliberately absent here -- they depend on the current
+ * count of registered items in the project and are computed at read time
+ * by lib/data/backlog.ts::getBacklogItems(), not stored. */
+export interface BacklogItem {
+  id: string;
+  project_id: string;
+  item_no: string | null;
+  company_code: string | null;
+  module: string | null;
+  lob: string | null;
+  dev_type: string | null;
+  description: string;
+  requested_by: string | null;
+  complexity: string | null;
+  go_live_critical: boolean;
+  dev_days: number;
+  dev_hours: number;
+  dev_cost: number;
+  fiori_days: number;
+  fiori_hours: number;
+  fiori_cost: number;
+  func_days: number;
+  func_hours: number;
+  func_cost: number;
+  status: BacklogItemStatus;
+  cr_no: string | null;
+  sent_for_approval_at: string | null;
+  approval_date: string | null;
+  remarks: string | null;
+  converted_object_id: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** BacklogItem plus the read-time-computed allocation fields. */
+export interface BacklogItemWithCost extends BacklogItem {
+  pmo_cost: number;
+  pgls_cost: number;
+  total_days: number;
+  total_cost: number;
 }
 
 // Minimal Database shape for @supabase/ssr's generic client typing.

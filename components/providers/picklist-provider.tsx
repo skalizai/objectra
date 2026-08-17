@@ -45,6 +45,10 @@ export function useProjectRoles() {
   return usePicklists().projectRoles;
 }
 
+export function useDevTypes() {
+  return usePicklists().devTypes;
+}
+
 const FALLBACK_COLOR = "var(--status-process-pending)";
 
 /** Resolves a status value to its admin-configured label/colour, falling

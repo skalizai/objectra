@@ -8,6 +8,7 @@ export interface PicklistBundle {
   companyCodes: Picklist[];
   streams: Picklist[];
   projectRoles: Picklist[];
+  devTypes: Picklist[];
 }
 
 export async function getPicklists(orgId: string): Promise<PicklistBundle> {
@@ -29,5 +30,6 @@ export async function getPicklists(orgId: string): Promise<PicklistBundle> {
     companyCodes: byType("company_code"),
     streams: byType("stream"),
     projectRoles: byType("project_role"),
+    devTypes: byType("dev_type"),
   };
 }

@@ -20,6 +20,7 @@ const PLACEHOLDER: Record<PicklistType, string> = {
   company_code: "e.g. 1000",
   stream: "e.g. Finance",
   project_role: "e.g. PMO",
+  dev_type: "e.g. Enhancement",
 };
 
 export function PicklistManager({
