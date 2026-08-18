@@ -290,6 +290,7 @@ export function BacklogRegister({
         item={openItem}
         projectId={projectId}
         canEdit={canEdit}
+        approverName={approverName}
         onClose={() => setOpenItem(null)}
         onChanged={refresh}
       />

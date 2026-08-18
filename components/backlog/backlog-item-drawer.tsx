@@ -6,7 +6,7 @@ import { Drawer } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useCompanyCodes, useComplexities, useDevTypes, useModules } from "@/components/providers/picklist-provider";
-import { updateBacklogItem, deleteBacklogItem, updateBacklogStatus, moveToObjects, type FormActionState } from "@/lib/actions/backlog";
+import { updateBacklogItem, deleteBacklogItem, updateBacklogStatus, moveToObjects, sendForApproval, type FormActionState } from "@/lib/actions/backlog";
 import { BacklogStatusPill } from "@/components/backlog/backlog-status-pill";
 import { BACKLOG_PACKAGES, type BacklogItem, type BacklogItemStatus } from "@/lib/types/database";
 
@@ -14,7 +14,17 @@ const initialState: FormActionState = { error: null };
 const selectClass =
   "h-10 w-full rounded-control border border-border-2 bg-surface-2 px-3 text-sm text-text focus:border-brass focus-visible:outline-none";
 
-function StatusActions({ item, projectId, onDone }: { item: BacklogItem; projectId: string; onDone: () => void }) {
+function StatusActions({
+  item,
+  projectId,
+  approverName,
+  onDone,
+}: {
+  item: BacklogItem;
+  projectId: string;
+  approverName: string | null;
+  onDone: () => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -23,6 +33,15 @@ function StatusActions({ item, projectId, onDone }: { item: BacklogItem; project
     setError(null);
     startTransition(async () => {
       const result = await updateBacklogStatus(item.id, projectId, status, note.trim() || undefined);
+      if (result.error) setError(result.error);
+      else onDone();
+    });
+  }
+
+  function send() {
+    setError(null);
+    startTransition(async () => {
+      const result = await sendForApproval(projectId, [item.id]);
       if (result.error) setError(result.error);
       else onDone();
     });
@@ -49,6 +68,14 @@ function StatusActions({ item, projectId, onDone }: { item: BacklogItem; project
         />
       )}
       <div className="flex flex-wrap gap-2">
+        {item.status === "registered" && (
+          <Button size="sm" disabled={isPending} onClick={send}>
+            {isPending ? "Sending…" : "Send for approval"}
+          </Button>
+        )}
+        {item.status === "registered" && approverName && (
+          <span className="self-center text-xs text-text-3">Notifies {approverName}</span>
+        )}
         {item.status === "sent_for_approval" && (
           <>
             <Button size="sm" disabled={isPending} onClick={() => transition("approved")}>Mark approved</Button>
@@ -75,12 +102,14 @@ function BacklogItemForm({
   item,
   projectId,
   canEdit,
+  approverName,
   onSaved,
   onDeleted,
 }: {
   item: BacklogItem;
   projectId: string;
   canEdit: boolean;
+  approverName: string | null;
   onSaved: () => void;
   onDeleted: () => void;
 }) {
@@ -120,7 +149,9 @@ function BacklogItemForm({
         <p className="text-xs text-text-3">This item has been moved to the objects register.</p>
       )}
 
-      {canEdit && item.status !== "moved_to_objects" && <StatusActions item={item} projectId={projectId} onDone={onSaved} />}
+      {canEdit && item.status !== "moved_to_objects" && (
+        <StatusActions item={item} projectId={projectId} approverName={approverName} onDone={onSaved} />
+      )}
 
       <form action={formAction} className="space-y-4">
         {state.error && (
@@ -314,12 +345,14 @@ export function BacklogItemDrawer({
   item,
   projectId,
   canEdit,
+  approverName,
   onClose,
   onChanged,
 }: {
   item: BacklogItem | null;
   projectId: string;
   canEdit: boolean;
+  approverName: string | null;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -331,6 +364,7 @@ export function BacklogItemDrawer({
           item={item}
           projectId={projectId}
           canEdit={canEdit}
+          approverName={approverName}
           onSaved={onChanged}
           onDeleted={() => {
             onChanged();
