@@ -38,8 +38,13 @@ export interface DashboardData {
  * Fetches portfolio-wide data for the dashboard. Relies entirely on RLS —
  * an org_admin sees every project/object, a project_manager sees only the
  * projects they manage, so this query needs no manual role branching.
+ *
+ * When `projectId` is given, every aggregate (KPIs, status distribution,
+ * module bar, deadline monitor) scopes to that one project — `projects`
+ * itself stays the full RLS-visible list, since the caller still needs it
+ * to populate the project picker regardless of which one is selected.
  */
-export async function getDashboardData(orgId: string): Promise<DashboardData> {
+export async function getDashboardData(orgId: string, projectId?: string): Promise<DashboardData> {
   const supabase = await createClient();
 
   const [{ data: projects }, { statuses }] = await Promise.all([
@@ -50,10 +55,9 @@ export async function getDashboardData(orgId: string): Promise<DashboardData> {
   const projectList = (projects ?? []) as Project[];
   const projectNameById = new Map(projectList.map((p) => [p.id, p.name]));
 
-  const { data: objects } = await supabase
-    .from("objects")
-    .select("*")
-    .order("due_date", { ascending: true, nullsFirst: false });
+  let objectsQuery = supabase.from("objects").select("*").order("due_date", { ascending: true, nullsFirst: false });
+  if (projectId) objectsQuery = objectsQuery.eq("project_id", projectId);
+  const { data: objects } = await objectsQuery;
 
   const objectList = (objects ?? []) as ObjectRow[];
 

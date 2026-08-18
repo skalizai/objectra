@@ -1,23 +1,47 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDashboardData } from "@/lib/data/dashboard";
+import { getBacklogItems } from "@/lib/data/backlog";
+import { getSupportDashboardData } from "@/lib/data/support";
 import { getViewer } from "@/lib/auth/get-viewer";
+import { createClient } from "@/lib/supabase/server";
 import { KpiRow } from "@/components/dashboard/kpi-row";
 import { StatusDonut } from "@/components/dashboard/status-donut";
 import { ModuleBar } from "@/components/dashboard/module-bar";
 import { ProjectProgress } from "@/components/dashboard/project-progress";
 import { DeadlineMonitor } from "@/components/dashboard/deadline-monitor";
+import { DashboardProjectPicker } from "@/components/dashboard/dashboard-project-picker";
+import { ProjectBacklogSummary } from "@/components/dashboard/project-backlog-summary";
 import { Button } from "@/components/ui/button";
+import { TicketKpiRow } from "@/components/support/ticket-kpi-row";
+import { TicketStatusDonut } from "@/components/support/ticket-status-donut";
+import { TicketCriticalityBar } from "@/components/support/ticket-criticality-bar";
+import { TicketModuleBar } from "@/components/support/ticket-module-bar";
+import { TicketAgingBuckets } from "@/components/support/ticket-aging-buckets";
+import { TicketWorkload } from "@/components/support/ticket-workload";
+import { TicketTopRaisers } from "@/components/support/ticket-top-raisers";
+import { TicketDeadlineMonitor } from "@/components/support/ticket-deadline-monitor";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-export default async function DashboardPage() {
-  const viewer = await getViewer();
-  const data = await getDashboardData(viewer!.profile.org_id);
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}) {
+  const [viewer, { project: projectParam }] = await Promise.all([getViewer(), searchParams]);
+  const data = await getDashboardData(viewer!.profile.org_id, projectParam);
+
+  // Only trust the query param if it actually names a project this viewer
+  // can see (getDashboardData's `projects` list is already RLS-scoped) --
+  // an unknown/foreign id just falls back to the portfolio-wide view.
+  const selectedProject = projectParam ? data.projects.find((p) => p.id === projectParam) : undefined;
+  const selectedProjectId = selectedProject?.id;
 
   const heading = viewer?.role === "org_admin" ? "Portfolio dashboard" : "Project dashboard";
-  const subtitle =
-    viewer?.role === "org_admin"
+  const subtitle = selectedProject
+    ? `Delivery, backlog, and support status for ${selectedProject.name}.`
+    : viewer?.role === "org_admin"
       ? "Delivery status across every active project."
       : "Delivery status across the projects you manage.";
 
@@ -35,11 +59,32 @@ export default async function DashboardPage() {
     );
   }
 
+  let backlogItems = null;
+  let supportDashboard = null;
+  let ticketsEnabled = false;
+  if (selectedProjectId) {
+    const supabase = await createClient();
+    const [items, support, { data: projectRow }] = await Promise.all([
+      getBacklogItems(selectedProjectId),
+      getSupportDashboardData(selectedProjectId),
+      supabase.from("projects").select("phase").eq("id", selectedProjectId).maybeSingle(),
+    ]);
+    backlogItems = items;
+    supportDashboard = support;
+    ticketsEnabled = projectRow?.phase === "hypercare" || projectRow?.phase === "support";
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold">{heading}</h1>
-        <p className="mt-1 text-sm text-text-2">{subtitle}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold">{heading}</h1>
+          <p className="mt-1 text-sm text-text-2">{subtitle}</p>
+        </div>
+        <DashboardProjectPicker
+          projects={data.projects.map((p) => ({ id: p.id, name: p.name }))}
+          selectedId={selectedProjectId ?? "all"}
+        />
       </div>
 
       <KpiRow kpis={data.kpis} />
@@ -50,6 +95,63 @@ export default async function DashboardPage() {
         <ProjectProgress data={data.projectProgress} statusAccents={data.statusAccents} />
         <DeadlineMonitor data={data.deadlineMonitor} />
       </div>
+
+      {selectedProject && backlogItems && (
+        <div className="space-y-4 border-t border-border pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-semibold">Backlog</h2>
+              <p className="mt-1 text-sm text-text-2">Registration & approval status for {selectedProject.name}.</p>
+            </div>
+            <Link href={`/projects/${selectedProjectId}/backlog`} className="text-sm underline" style={{ color: "var(--brass)" }}>
+              Open Backlog tab →
+            </Link>
+          </div>
+          <ProjectBacklogSummary items={backlogItems} />
+        </div>
+      )}
+
+      {selectedProject && (
+        <div className="space-y-4 border-t border-border pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-semibold">Support</h2>
+              <p className="mt-1 text-sm text-text-2">Hypercare ticket status for {selectedProject.name}.</p>
+            </div>
+            <Link href={`/projects/${selectedProjectId}/support`} className="text-sm underline" style={{ color: "var(--brass)" }}>
+              Open Support tab →
+            </Link>
+          </div>
+
+          {!ticketsEnabled && (
+            <div
+              className="rounded-control border px-3 py-2.5 text-sm"
+              style={{ borderColor: "var(--brass)", color: "var(--text-2)" }}
+            >
+              This project isn&apos;t in Hypercare or Support phase yet, so there&apos;s no ticket activity below.
+            </div>
+          )}
+
+          {supportDashboard && (
+            <>
+              <TicketKpiRow kpis={supportDashboard.kpis} />
+              <div className="grid gap-5 lg:grid-cols-2">
+                <TicketStatusDonut data={supportDashboard.statusDistribution} />
+                <TicketCriticalityBar data={supportDashboard.byCriticality} />
+              </div>
+              <div className="grid gap-5 lg:grid-cols-2">
+                <TicketModuleBar data={supportDashboard.byModule} />
+                <TicketAgingBuckets data={supportDashboard.agingBuckets} />
+              </div>
+              <div className="grid gap-5 lg:grid-cols-2">
+                <TicketWorkload data={supportDashboard.workload} />
+                <TicketTopRaisers data={supportDashboard.topRaisers} />
+              </div>
+              <TicketDeadlineMonitor data={supportDashboard.upcomingDeadlines} />
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

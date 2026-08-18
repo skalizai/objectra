@@ -321,6 +321,17 @@ All 31 items from the ShiftX backlog workbook's "Backlog Items" sheet (Descripti
 
 Module/LOB/Type are open-ended nominal fields (not fixed enums), so their slice colors are assigned from the **dataviz skill**'s validated 8-hue categorical palette — validated with `validate_palette.js` against Objectra's actual dark chart surface (`#161B22`; the app is dark-mode-only, no light variant needed), all 8 slots clearing the lightness/chroma/CVD/contrast gates. Colors are assigned once from the *full, unfiltered* item set's frequency ranking and reused verbatim for any package-scoped view, so a value's color never repaints when the selector changes which slices are visible (the "color follows the entity, never its rank" rule) — values beyond the top 8 by overall frequency fold into a neutral "Other" bucket. LOB values are comma-split before counting (`"BPC,BPP,MBF"` contributes to all three tags), so the By-LOB donut's center number is a tag count, not an item count — labeled "tags" instead of "items" to avoid confusion. Package itself, being a small fixed known-in-advance set, gets a hardcoded per-value color (declaration order) rather than frequency-ranked, same reasoning `ticket-status-donut.tsx` hardcodes per-status colors.
 
+### 27e. Backlog + Support folded into the portfolio Dashboard (added post-launch)
+
+`app/(app)/dashboard/page.tsx` (the org_admin "Portfolio dashboard" / PM "Project dashboard", nav-visible only to org_admin/project_manager/technical_lead — the same role set that already has Backlog-edit and Support-manage access, so no extra per-section role check is needed beyond "is a project selected") gained a **project selector** (`components/dashboard/dashboard-project-picker.tsx`, same `?project=` query-param pattern as Settings' `ProjectPicker`, plus an "All projects" option that's the default/unscoped view). `lib/data/dashboard.ts::getDashboardData()` took an optional `projectId` param — when set, every existing aggregate (KPIs, status donut, module bar, deadline monitor) scopes to that one project via `.eq("project_id", ...)` on the objects query; `projects` itself always stays the full RLS-visible list so the picker has its options regardless of what's selected. The existing charts are otherwise unchanged.
+
+When a specific project is selected (not "All projects"), two more sections render below the existing charts, each with a "→" link out to that project's real tab:
+
+- **Backlog** — `components/dashboard/project-backlog-summary.tsx` (a thin client wrapper holding its own `packageFilter` state so the already-built `BacklogDashboard` can be embedded standalone here) + `getBacklogItems(selectedProjectId)`.
+- **Support** — the exact same KPI row + 4 chart cards `/projects/[id]/support` renders (`TicketKpiRow`/`TicketStatusDonut`/`TicketCriticalityBar`/`TicketModuleBar`/`TicketAgingBuckets`/`TicketWorkload`/`TicketTopRaisers`/`TicketDeadlineMonitor`), fed by `getSupportDashboardData(selectedProjectId)` — with the same "not in Hypercare/Support phase yet" banner the Support tab itself shows when applicable.
+
+Neither section duplicates the full interactive table (Backlog register / Tickets table) or the raise/create actions — those stay on their own tabs; the portfolio page links out rather than re-implementing them, to avoid a second copy of the same CRUD surface.
+
 ### 27a. Original Excel workbook prompt (superseded by the app feature above, kept for reference)
 
 # Prompt: Add "Backlog Items – Registration" Tab with Client Approval Workflow
