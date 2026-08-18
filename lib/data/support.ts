@@ -230,10 +230,14 @@ export interface SupportDashboardData {
 
 /** Aggregates the Support dashboard's KPI tiles, status donut, criticality
  * bar, and aging buckets from the same RLS-scoped ticket set the table
- * uses — no separate access check needed. */
-export async function getSupportDashboardData(projectId: string): Promise<SupportDashboardData> {
+ * uses — no separate access check needed. Omitting projectId aggregates
+ * across every project the viewer can see (the portfolio dashboard's "All
+ * projects" view) instead of one project's tickets. */
+export async function getSupportDashboardData(projectId?: string): Promise<SupportDashboardData> {
   const supabase = await createClient();
-  const { data } = await supabase.from("tickets").select("*").eq("project_id", projectId);
+  let ticketsQuery = supabase.from("tickets").select("*");
+  if (projectId) ticketsQuery = ticketsQuery.eq("project_id", projectId);
+  const { data } = await ticketsQuery;
   const tickets = (data ?? []) as import("@/lib/types/database").Ticket[];
   const named = await withNames(supabase, tickets);
 

@@ -42,8 +42,8 @@ export default async function DashboardPage({
   const subtitle = selectedProject
     ? `Delivery, backlog, and support status for ${selectedProject.name}.`
     : viewer?.role === "org_admin"
-      ? "Delivery status across every active project."
-      : "Delivery status across the projects you manage.";
+      ? "Delivery, backlog, and support status across every active project."
+      : "Delivery, backlog, and support status across the projects you manage.";
 
   if (data.projects.length === 0) {
     return (
@@ -59,20 +59,21 @@ export default async function DashboardPage({
     );
   }
 
-  let backlogItems = null;
-  let supportDashboard = null;
-  let ticketsEnabled = false;
-  if (selectedProjectId) {
-    const supabase = await createClient();
-    const [items, support, { data: projectRow }] = await Promise.all([
-      getBacklogItems(selectedProjectId),
-      getSupportDashboardData(selectedProjectId),
-      supabase.from("projects").select("phase").eq("id", selectedProjectId).maybeSingle(),
-    ]);
-    backlogItems = items;
-    supportDashboard = support;
-    ticketsEnabled = projectRow?.phase === "hypercare" || projectRow?.phase === "support";
-  }
+  // Backlog/Support aggregate across every visible project when no single
+  // project is selected -- same "all projects" default the top KPI/status/
+  // module charts already use, just extended to these two sections instead
+  // of only appearing once a project is picked.
+  const supabase = await createClient();
+  const [backlogItems, supportDashboard, projectRow] = await Promise.all([
+    getBacklogItems(selectedProjectId),
+    getSupportDashboardData(selectedProjectId),
+    selectedProjectId
+      ? supabase.from("projects").select("phase").eq("id", selectedProjectId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const ticketsEnabled = selectedProjectId
+    ? projectRow.data?.phase === "hypercare" || projectRow.data?.phase === "support"
+    : true;
 
   return (
     <div className="space-y-6">
@@ -96,62 +97,62 @@ export default async function DashboardPage({
         <DeadlineMonitor data={data.deadlineMonitor} />
       </div>
 
-      {selectedProject && backlogItems && (
-        <div className="space-y-4 border-t border-border pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-lg font-semibold">Backlog</h2>
-              <p className="mt-1 text-sm text-text-2">Registration & approval status for {selectedProject.name}.</p>
-            </div>
+      <div className="space-y-4 border-t border-border pt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold">Backlog</h2>
+            <p className="mt-1 text-sm text-text-2">
+              Registration & approval status {selectedProject ? `for ${selectedProject.name}` : "across every project"}.
+            </p>
+          </div>
+          {selectedProjectId && (
             <Link href={`/projects/${selectedProjectId}/backlog`} className="text-sm underline" style={{ color: "var(--brass)" }}>
               Open Backlog tab →
             </Link>
-          </div>
-          <ProjectBacklogSummary items={backlogItems} />
+          )}
         </div>
-      )}
+        <ProjectBacklogSummary items={backlogItems} />
+      </div>
 
-      {selectedProject && (
-        <div className="space-y-4 border-t border-border pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-lg font-semibold">Support</h2>
-              <p className="mt-1 text-sm text-text-2">Hypercare ticket status for {selectedProject.name}.</p>
-            </div>
+      <div className="space-y-4 border-t border-border pt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold">Support</h2>
+            <p className="mt-1 text-sm text-text-2">
+              Hypercare ticket status {selectedProject ? `for ${selectedProject.name}` : "across every project"}.
+            </p>
+          </div>
+          {selectedProjectId && (
             <Link href={`/projects/${selectedProjectId}/support`} className="text-sm underline" style={{ color: "var(--brass)" }}>
               Open Support tab →
             </Link>
-          </div>
-
-          {!ticketsEnabled && (
-            <div
-              className="rounded-control border px-3 py-2.5 text-sm"
-              style={{ borderColor: "var(--brass)", color: "var(--text-2)" }}
-            >
-              This project isn&apos;t in Hypercare or Support phase yet, so there&apos;s no ticket activity below.
-            </div>
-          )}
-
-          {supportDashboard && (
-            <>
-              <TicketKpiRow kpis={supportDashboard.kpis} />
-              <div className="grid gap-5 lg:grid-cols-2">
-                <TicketStatusDonut data={supportDashboard.statusDistribution} />
-                <TicketCriticalityBar data={supportDashboard.byCriticality} />
-              </div>
-              <div className="grid gap-5 lg:grid-cols-2">
-                <TicketModuleBar data={supportDashboard.byModule} />
-                <TicketAgingBuckets data={supportDashboard.agingBuckets} />
-              </div>
-              <div className="grid gap-5 lg:grid-cols-2">
-                <TicketWorkload data={supportDashboard.workload} />
-                <TicketTopRaisers data={supportDashboard.topRaisers} />
-              </div>
-              <TicketDeadlineMonitor data={supportDashboard.upcomingDeadlines} />
-            </>
           )}
         </div>
-      )}
+
+        {selectedProjectId && !ticketsEnabled && (
+          <div
+            className="rounded-control border px-3 py-2.5 text-sm"
+            style={{ borderColor: "var(--brass)", color: "var(--text-2)" }}
+          >
+            This project isn&apos;t in Hypercare or Support phase yet, so there&apos;s no ticket activity below.
+          </div>
+        )}
+
+        <TicketKpiRow kpis={supportDashboard.kpis} />
+        <div className="grid gap-5 lg:grid-cols-2">
+          <TicketStatusDonut data={supportDashboard.statusDistribution} />
+          <TicketCriticalityBar data={supportDashboard.byCriticality} />
+        </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <TicketModuleBar data={supportDashboard.byModule} />
+          <TicketAgingBuckets data={supportDashboard.agingBuckets} />
+        </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <TicketWorkload data={supportDashboard.workload} />
+          <TicketTopRaisers data={supportDashboard.topRaisers} />
+        </div>
+        <TicketDeadlineMonitor data={supportDashboard.upcomingDeadlines} />
+      </div>
     </div>
   );
 }
