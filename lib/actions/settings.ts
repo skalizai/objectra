@@ -129,7 +129,10 @@ export async function updateOwnName(_prevState: SimpleActionState, formData: For
   const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("id", viewer.user.id);
   if (error) return { error: error.message, success: false };
 
-  revalidatePath("/settings");
+  // The name is rendered in the root layout's shared header (UserMenu), not
+  // just on /settings -- revalidating only "/settings" leaves every other
+  // route's client-side Router Cache entry stale until a hard reload.
+  revalidatePath("/", "layout");
   return { error: null, success: true };
 }
 

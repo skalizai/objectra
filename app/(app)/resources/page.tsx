@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getViewer } from "@/lib/auth/get-viewer";
+import { isProjectEditorRole } from "@/lib/auth/permissions";
 import { listResources } from "@/lib/data/resources";
 import { listProjects } from "@/lib/data/projects";
 import { ResourcesTable } from "@/components/resources/resources-table";
@@ -16,9 +17,12 @@ export default async function ResourcesPage() {
     listProjects(),
   ]);
 
-  // Only org_admin can edit/invite/delete resources — PMs and technical
-  // leads used to be able to as well, now roster changes are admin-only.
-  const canManage = viewer.role === "org_admin";
+  // org_admin, and any Project Manager/Technical Lead on at least one
+  // project, can edit/invite/delete resources (RLS: resources_write in
+  // 0041_resources_pm_write.sql grants the same at the database layer).
+  const canManage =
+    viewer.role === "org_admin" ||
+    Object.values(viewer.projectRoles).some((r) => isProjectEditorRole(r));
   const overAllocatedCount = resources.filter((r) => r.overAllocated).length;
 
   return (
