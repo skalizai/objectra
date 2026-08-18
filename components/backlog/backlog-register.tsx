@@ -8,14 +8,69 @@ import { useModules } from "@/components/providers/picklist-provider";
 import { BacklogStatusPill } from "@/components/backlog/backlog-status-pill";
 import { BacklogItemDrawer } from "@/components/backlog/backlog-item-drawer";
 import { BacklogDashboard } from "@/components/backlog/backlog-dashboard";
-import { sendForApproval } from "@/lib/actions/backlog";
+import { sendForApproval, sendToClient } from "@/lib/actions/backlog";
 import type { BacklogItem, BacklogItemStatus, BacklogPackage } from "@/lib/types/database";
 
 const STATUS_OPTIONS: (BacklogItemStatus | "all")[] = [
   "all", "registered", "sent_for_approval", "approved", "rejected", "on_hold", "moved_to_objects",
 ];
 
+/** Registered -> sent_for_approval, notifying the project's PM Approver --
+ * the internal review gate. No client reference needed here; that's
+ * SendToClientBar's job, once an item has actually cleared this step. */
 function SendForApprovalBar({
+  projectId,
+  selectedIds,
+  approverName,
+  onClear,
+  onSent,
+}: {
+  projectId: string;
+  selectedIds: string[];
+  approverName: string | null;
+  onClear: () => void;
+  onSent: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function send() {
+    setError(null);
+    setPending(true);
+    const result = await sendForApproval(projectId, selectedIds);
+    setPending(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    onSent();
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-control border px-3 py-2.5 text-sm" style={{ borderColor: "var(--brass)" }}>
+      <span className="text-text-2">
+        {selectedIds.length} item{selectedIds.length === 1 ? "" : "s"} selected
+        {approverName && <> — notifies <span className="text-text">{approverName}</span></>}
+      </span>
+      <button
+        onClick={send}
+        disabled={pending}
+        className="h-8 rounded-[7px] px-3 text-xs font-medium text-on-brass disabled:opacity-50"
+        style={{ background: "var(--brass)" }}
+      >
+        {pending ? "Sending…" : "Send for approval"}
+      </button>
+      <button onClick={onClear} className="text-xs text-text-3 hover:text-text-2">Cancel</button>
+      {error && <span className="text-xs" style={{ color: "var(--status-overdue)" }}>{error}</span>}
+    </div>
+  );
+}
+
+/** Approved items only -- a separate, optional step to loop the client in
+ * once an item has already cleared internal PM review. Doesn't change the
+ * item's status; just stamps a client reference and sends the summary
+ * email that used to fire directly off "Send for approval". */
+function SendToClientBar({
   projectId,
   selectedIds,
   onClear,
@@ -33,7 +88,7 @@ function SendForApprovalBar({
   async function send() {
     setError(null);
     setPending(true);
-    const result = await sendForApproval(projectId, selectedIds, crNo);
+    const result = await sendToClient(projectId, selectedIds, crNo);
     setPending(false);
     if (result.error) {
       setError(result.error);
@@ -44,8 +99,8 @@ function SendForApprovalBar({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-control border px-3 py-2.5 text-sm" style={{ borderColor: "var(--brass)" }}>
-      <span className="text-text-2">{selectedIds.length} item{selectedIds.length === 1 ? "" : "s"} selected</span>
+    <div className="flex flex-wrap items-center gap-2 rounded-control border px-3 py-2.5 text-sm" style={{ borderColor: "var(--status-live)" }}>
+      <span className="text-text-2">{selectedIds.length} approved item{selectedIds.length === 1 ? "" : "s"} selected</span>
       <input
         value={crNo}
         onChange={(e) => setCrNo(e.target.value)}
@@ -55,10 +110,10 @@ function SendForApprovalBar({
       <button
         onClick={send}
         disabled={pending || !crNo.trim()}
-        className="h-8 rounded-[7px] px-3 text-xs font-medium text-on-brass disabled:opacity-50"
-        style={{ background: "var(--brass)" }}
+        className="h-8 rounded-[7px] px-3 text-xs font-medium text-white disabled:opacity-50"
+        style={{ background: "var(--status-live)" }}
       >
-        {pending ? "Sending…" : "Send for approval"}
+        {pending ? "Sending…" : "Send to client"}
       </button>
       <button onClick={onClear} className="text-xs text-text-3 hover:text-text-2">Cancel</button>
       {error && <span className="text-xs" style={{ color: "var(--status-overdue)" }}>{error}</span>}
@@ -70,10 +125,12 @@ export function BacklogRegister({
   projectId,
   items,
   canEdit,
+  approverName,
 }: {
   projectId: string;
   items: BacklogItem[];
   canEdit: boolean;
+  approverName: string | null;
 }) {
   const router = useRouter();
   const modules = useModules();
@@ -95,8 +152,13 @@ export function BacklogRegister({
     });
   }, [items, search, moduleFilter, statusFilter, packageFilter]);
 
-  const selectableIds = filtered.filter((i) => i.status === "registered").map((i) => i.id);
-  const selectedIds = Array.from(selected).filter((id) => selectableIds.includes(id));
+  // Checkboxes are selectable on both registered (-> send for approval)
+  // and approved (-> send to client) rows; which action bar shows depends
+  // on which subset the current selection falls into.
+  const registeredIds = filtered.filter((i) => i.status === "registered").map((i) => i.id);
+  const approvedIds = filtered.filter((i) => i.status === "approved").map((i) => i.id);
+  const selectedRegisteredIds = Array.from(selected).filter((id) => registeredIds.includes(id));
+  const selectedApprovedIds = Array.from(selected).filter((id) => approvedIds.includes(id));
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -143,9 +205,25 @@ export function BacklogRegister({
         )}
       </div>
 
-      {canEdit && selectedIds.length > 0 && (
-        <div className="pb-4">
-          <SendForApprovalBar projectId={projectId} selectedIds={selectedIds} onClear={() => setSelected(new Set())} onSent={refresh} />
+      {canEdit && (selectedRegisteredIds.length > 0 || selectedApprovedIds.length > 0) && (
+        <div className="space-y-2 pb-4">
+          {selectedRegisteredIds.length > 0 && (
+            <SendForApprovalBar
+              projectId={projectId}
+              selectedIds={selectedRegisteredIds}
+              approverName={approverName}
+              onClear={() => setSelected(new Set())}
+              onSent={refresh}
+            />
+          )}
+          {selectedApprovedIds.length > 0 && (
+            <SendToClientBar
+              projectId={projectId}
+              selectedIds={selectedApprovedIds}
+              onClear={() => setSelected(new Set())}
+              onSent={refresh}
+            />
+          )}
         </div>
       )}
 
@@ -178,7 +256,7 @@ export function BacklogRegister({
               >
                 {canEdit && (
                   <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    {item.status === "registered" && (
+                    {(item.status === "registered" || item.status === "approved") && (
                       <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
                     )}
                   </td>

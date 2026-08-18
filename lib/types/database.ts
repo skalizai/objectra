@@ -48,7 +48,8 @@ export type EmailType =
   | "ticket_status"
   | "sla_alert"
   | "sla_escalation"
-  | "backlog_approval_request";
+  | "backlog_approval_request"
+  | "backlog_pm_approval_request";
 export type EmailStatus = "sent" | "failed";
 export type DigestDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
@@ -112,6 +113,7 @@ export interface Project {
   stream: string | null;
   phase: ProjectPhase;
   go_live_date: string | null;
+  backlog_approver_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -468,6 +470,8 @@ export interface BacklogItem {
   func_days: number;
   status: BacklogItemStatus;
   cr_no: string | null;
+  approval_mode: "individual" | "package" | null;
+  approval_batch_ref: string | null;
   sent_for_approval_at: string | null;
   approval_date: string | null;
   remarks: string | null;
@@ -476,6 +480,23 @@ export interface BacklogItem {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** One row per "sent for approval" / approve / reject / on-hold event --
+ * append-only (backlog_approval_log has no UPDATE/DELETE RLS policy at
+ * all, so immutability is enforced at the DB layer, not just convention). */
+export type BacklogApprovalAction = "sent" | "approved" | "rejected" | "on_hold";
+
+export interface BacklogApprovalLogEntry {
+  id: string;
+  project_id: string;
+  batch_ref: string | null;
+  item_ids: string[];
+  action: BacklogApprovalAction;
+  actor_id: string | null;
+  total_days: number | null;
+  note: string | null;
+  created_at: string;
 }
 
 // Minimal Database shape for @supabase/ssr's generic client typing.

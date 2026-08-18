@@ -17,11 +17,12 @@ const selectClass =
 function StatusActions({ item, projectId, onDone }: { item: BacklogItem; projectId: string; onDone: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState("");
 
   function transition(status: Extract<BacklogItemStatus, "approved" | "rejected" | "on_hold" | "registered">) {
     setError(null);
     startTransition(async () => {
-      const result = await updateBacklogStatus(item.id, projectId, status);
+      const result = await updateBacklogStatus(item.id, projectId, status, note.trim() || undefined);
       if (result.error) setError(result.error);
       else onDone();
     });
@@ -39,6 +40,14 @@ function StatusActions({ item, projectId, onDone }: { item: BacklogItem; project
   return (
     <div className="space-y-2">
       {error && <p className="text-xs" style={{ color: "var(--status-overdue)" }}>{error}</p>}
+      {item.status === "sent_for_approval" && (
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Optional note (used for Reject/On hold)"
+          className="h-8 w-full rounded-[7px] border border-border-2 bg-surface-2 px-2.5 text-xs text-text focus:border-brass focus-visible:outline-none"
+        />
+      )}
       <div className="flex flex-wrap gap-2">
         {item.status === "sent_for_approval" && (
           <>

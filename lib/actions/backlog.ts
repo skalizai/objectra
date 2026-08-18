@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/auth/get-viewer";
-import { notifyBacklogApprovalRequest } from "@/lib/email/notify-backlog";
-import type { BacklogItemStatus, BacklogPackage, ObjectType } from "@/lib/types/database";
+import { notifyBacklogApprovalRequest, notifyBacklogPmApprovalRequest } from "@/lib/email/notify-backlog";
+import type { BacklogApprovalAction, BacklogItemStatus, BacklogPackage, ObjectType } from "@/lib/types/database";
 
 export interface FormActionState {
   error: string | null;
@@ -31,6 +31,37 @@ function readDays(formData: FormData, field: string): number {
 function readPackage(formData: FormData): BacklogPackage | null {
   const raw = String(formData.get("package") ?? "").trim();
   return raw ? (raw as BacklogPackage) : null;
+}
+
+type DaysRow = { dev_days: number; fiori_days: number; func_days: number };
+
+function sumDays(rows: DaysRow[]): number {
+  return rows.reduce((sum, r) => sum + r.dev_days + r.fiori_days + r.func_days, 0);
+}
+
+/** backlog_approval_log is append-only by RLS (no UPDATE/DELETE policy) --
+ * every send/decision writes exactly one row here. */
+async function logApprovalEvent(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  params: {
+    projectId: string;
+    batchRef: string | null;
+    itemIds: string[];
+    action: BacklogApprovalAction;
+    actorId: string;
+    totalDays: number;
+    note?: string | null;
+  },
+) {
+  await supabase.from("backlog_approval_log").insert({
+    project_id: params.projectId,
+    batch_ref: params.batchRef,
+    item_ids: params.itemIds,
+    action: params.action,
+    actor_id: params.actorId,
+    total_days: params.totalDays,
+    note: params.note ?? null,
+  });
 }
 
 export async function createBacklogItem(
@@ -135,62 +166,130 @@ export async function deleteBacklogItem(itemId: string, projectId: string): Prom
 }
 
 /** Bulk-transitions selected items (must currently be 'registered') to
- * 'sent_for_approval', stamps cr_no + sent_for_approval_at, and fires the
- * client approval email. Event-driven, not a cron job -- same shape as
- * notifyTicketCreated(). */
-export async function sendForApproval(
-  projectId: string,
-  itemIds: string[],
-  crNo: string,
-): Promise<SimpleActionState> {
+ * 'sent_for_approval' and notifies the project's configured PM Approver
+ * (falls back to the project PM -- see getBacklogApprover). Generates an
+ * auto batch reference: a single item gets an "individual" APR-ITM-#####
+ * ref, 2+ get a shared "package" PKG-##### ref. Event-driven, not a cron
+ * job -- same shape as notifyTicketCreated(). This is the *internal*
+ * approval step; sending an already-approved batch to the client is a
+ * separate action, sendToClient() below. */
+export async function sendForApproval(projectId: string, itemIds: string[]): Promise<SimpleActionState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/sign-in");
+  if (itemIds.length === 0) return { error: "Select at least one item.", success: false };
+
+  const supabase = await createClient();
+  const mode: "individual" | "package" = itemIds.length === 1 ? "individual" : "package";
+  const { data: batchRef, error: refError } = await supabase.rpc("generate_approval_ref", {
+    p_project_id: projectId,
+    p_mode: mode,
+  });
+  if (refError) return { error: refError.message, success: false };
+
+  const { data: updated, error } = await supabase
+    .from("backlog_items")
+    .update({
+      status: "sent_for_approval",
+      approval_mode: mode,
+      approval_batch_ref: batchRef,
+      sent_for_approval_at: new Date().toISOString(),
+      updated_by: viewer.user.id,
+    })
+    .eq("project_id", projectId)
+    .eq("status", "registered")
+    .in("id", itemIds)
+    .select("id, dev_days, fiori_days, func_days");
+
+  if (error) return { error: error.message, success: false };
+  const sentIds = (updated ?? []).map((r) => r.id as string);
+  if (sentIds.length === 0) return { error: "None of the selected items are still Registered.", success: false };
+
+  await logApprovalEvent(supabase, {
+    projectId,
+    batchRef,
+    itemIds: sentIds,
+    action: "sent",
+    actorId: viewer.user.id,
+    totalDays: sumDays(updated as DaysRow[]),
+  });
+
+  revalidatePath(`/projects/${projectId}/backlog`);
+  await notifyBacklogPmApprovalRequest(projectId, sentIds, batchRef);
+  return { error: null, success: true };
+}
+
+/** Sends an already-approved batch to the client for their own sign-off --
+ * the original client-facing email (unchanged), now a deliberate second
+ * step after internal PM approval rather than the trigger for it. Doesn't
+ * change backlog_items.status; only approved items are eligible. */
+export async function sendToClient(projectId: string, itemIds: string[], crNo: string): Promise<SimpleActionState> {
   const viewer = await getViewer();
   if (!viewer) redirect("/sign-in");
   if (itemIds.length === 0) return { error: "Select at least one item.", success: false };
   if (!crNo.trim()) return { error: "A CR number is required.", success: false };
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("backlog_items")
-    .update({
-      status: "sent_for_approval",
-      cr_no: crNo.trim(),
-      sent_for_approval_at: new Date().toISOString(),
-      updated_by: viewer.user.id,
-    })
+    .update({ cr_no: crNo.trim(), updated_by: viewer.user.id })
     .eq("project_id", projectId)
-    .eq("status", "registered")
-    .in("id", itemIds);
+    .eq("status", "approved")
+    .in("id", itemIds)
+    .select("id");
 
   if (error) return { error: error.message, success: false };
+  const eligibleIds = (updated ?? []).map((r) => r.id as string);
+  if (eligibleIds.length === 0) return { error: "Only already-approved items can be sent to the client.", success: false };
 
   revalidatePath(`/projects/${projectId}/backlog`);
-  await notifyBacklogApprovalRequest(projectId, itemIds, crNo.trim());
+  await notifyBacklogApprovalRequest(projectId, eligibleIds, crNo.trim());
   return { error: null, success: true };
 }
 
 /** Approve/reject/hold from the register or drawer. Approving stamps
  * approval_date; the other two just move status (a rejected/on_hold item
- * can be re-sent for approval later by selecting it again). */
+ * can be re-sent for approval later by selecting it again). Every call
+ * writes one backlog_approval_log row; an optional note on reject/hold is
+ * also mirrored onto the item's own remarks for at-a-glance visibility. */
 export async function updateBacklogStatus(
   itemId: string,
   projectId: string,
   status: Extract<BacklogItemStatus, "approved" | "rejected" | "on_hold" | "registered">,
+  note?: string,
 ): Promise<SimpleActionState> {
   const viewer = await getViewer();
   if (!viewer) redirect("/sign-in");
 
+  const trimmedNote = note?.trim() || null;
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("backlog_items")
     .update({
       status,
       approval_date: status === "approved" ? new Date().toISOString().slice(0, 10) : null,
+      ...(trimmedNote ? { remarks: trimmedNote } : {}),
       updated_by: viewer.user.id,
     })
     .eq("id", itemId)
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .select("id, approval_batch_ref, dev_days, fiori_days, func_days")
+    .maybeSingle();
 
   if (error) return { error: error.message, success: false };
+  if (!updated) return { error: "Backlog item not found.", success: false };
+
+  if (status === "approved" || status === "rejected" || status === "on_hold") {
+    await logApprovalEvent(supabase, {
+      projectId,
+      batchRef: updated.approval_batch_ref,
+      itemIds: [itemId],
+      action: status,
+      actorId: viewer.user.id,
+      totalDays: sumDays([updated as DaysRow]),
+      note: trimmedNote,
+    });
+  }
+
   revalidatePath(`/projects/${projectId}/backlog`);
   return { error: null, success: true };
 }

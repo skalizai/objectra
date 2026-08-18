@@ -61,6 +61,25 @@ const PACKAGE_COLOR: Record<string, string> = Object.fromEntries(
   BACKLOG_PACKAGES.map((p, i) => [p, CATEGORICAL[i]]),
 );
 
+// Same fixed colors/labels as backlog-status-pill.tsx -- status is a
+// small known enum, not frequency-ranked.
+const STATUS_COLOR: Record<string, string> = {
+  registered: "#7A8492",
+  sent_for_approval: "#E0A340",
+  approved: "#35C08A",
+  rejected: "#F0574B",
+  on_hold: "#9A7CF7",
+  moved_to_objects: "#4C8DF6",
+};
+const STATUS_LABEL: Record<string, string> = {
+  registered: "Registered",
+  sent_for_approval: "Sent for approval",
+  approved: "Approved",
+  rejected: "Rejected",
+  on_hold: "On hold",
+  moved_to_objects: "Moved to objects",
+};
+
 export function BacklogDashboard({
   items,
   packageFilter,
@@ -123,6 +142,14 @@ export function BacklogDashboard({
       .map(([label, count]) => ({ label, count, color: PACKAGE_COLOR[label] ?? OTHER_COLOR }));
   }, [scoped]);
 
+  const statusSlices = useMemo<CategorySlice[]>(() => {
+    const counts = new Map<string, number>();
+    for (const item of scoped) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([status, count]) => ({ label: STATUS_LABEL[status] ?? status, count, color: STATUS_COLOR[status] ?? OTHER_COLOR }));
+  }, [scoped]);
+
   const selectClass =
     "h-10 rounded-control border border-border-2 bg-surface-2 px-3 text-sm text-text focus:border-brass focus-visible:outline-none";
 
@@ -153,6 +180,7 @@ export function BacklogDashboard({
         <BacklogCategoryDonut title="By package" caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} data={packageSlices} totalLabel="items" delay={0.24} />
         <BacklogEffortTypeBar data={effortTypeData} caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} delay={0.3} />
         <BacklogModuleDaysBar data={moduleDaysData} caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} delay={0.36} />
+        <BacklogCategoryDonut title="By status" caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} data={statusSlices} totalLabel="items" delay={0.42} />
       </div>
     </div>
   );

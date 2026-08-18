@@ -336,6 +336,18 @@ The "→ Open Backlog/Support tab" links only render when a single project is se
 
 Neither section duplicates the full interactive table (Backlog register / Tickets table) or the raise/create actions — those stay on their own tabs; the portfolio page links out rather than re-implementing them, to avoid a second copy of the same CRUD surface.
 
+### 27f. PM Approval Workflow (added post-launch, amends section 27's approval flow)
+
+The user pasted another Excel-workbook-style prompt ("Backlog Items — Project Manager Approval Workflow") describing approval routed through a named Project Manager rather than the client, with individual/package send modes and an audit trail. Confirmed this was for the real app, and confirmed how it relates to what section 27 already shipped: **PM approval replaces the client email as the primary "Send for approval" trigger** — the original client-facing email became a separate, later, optional step.
+
+- **Status lifecycle unchanged** (`registered | sent_for_approval | approved | rejected | on_hold | moved_to_objects`) — the new prompt's `In Progress`/`Completed` states were deliberately *not* added; once an item is `moved_to_objects`, the created object's own status already tracks in-progress/completed work, so a parallel set of states on `backlog_items` would just duplicate the Objects register. `sent_for_approval` is relabeled in UI copy only ("sent for PM approval").
+- **Approver**: `projects.backlog_approver_id` (resource, not profile — same "assign before invite" pattern as `pm_id`), falling back to the project's own `pm_id` if unset. Settings → "Backlog approver" (`components/settings/backlog-approver-form.tsx`) is a one-field resource picker mirroring `SupportRoutingForm`'s consultant `<select>`. No RLS restricts Approve/Reject to only this resource — it's who gets emailed, not a hard permission boundary; org_admin/PM retain the existing override.
+- **`sendForApproval(projectId, itemIds)`** (`lib/actions/backlog.ts`, no longer takes a CR number) does the `registered → sent_for_approval` transition, auto-generates a batch reference via the new `generate_approval_ref()` SQL function/`backlog_approval_sequences` table (mirrors `generate_backlog_no()`/`backlog_sequences` exactly) — a single item gets `approval_mode='individual'`/`APR-ITM-#####`, 2+ get `'package'`/`PKG-#####`, sharing one counter since the prefix already disambiguates them — and emails the resolved Approver via the new `notifyBacklogPmApprovalRequest()` (`lib/email/notify-backlog.ts`, logged as `email_log.type='backlog_pm_approval_request'`).
+- **`sendToClient(projectId, itemIds, crNo)`** (new) is the *old* `sendForApproval` body verbatim — stamps `cr_no`, calls the unchanged `notifyBacklogApprovalRequest()` (client email) — now gated to items already `status='approved'` and never changes their status; it's a side/informational send. Surfaced as a second action bar (`SendToClientBar` in `backlog-register.tsx`) that appears when approved items are selected, alongside `SendForApprovalBar` for registered ones (checkboxes are now selectable on both statuses).
+- **`backlog_approval_log`** (new table, `0039_backlog_pm_approval.sql`) — append-only audit trail (`batch_ref`, `item_ids uuid[]`, `action: sent|approved|rejected|on_hold`, `actor_id`, `total_days`, `note`). RLS deliberately has **no UPDATE/DELETE policy at all**, so immutability is enforced at the database layer rather than by convention — same idiom `ticket_events` already uses. One row is written per `sendForApproval` call and per `updateBacklogStatus` decision; there's no `'partially_approved'` action value since a batch's mixed outcome is just what you see reading the log for one `batch_ref`, not a distinct event. Rendered read-only, collapsed by default, in `components/backlog/backlog-approval-log.tsx` below the register.
+- **`updateBacklogStatus(itemId, projectId, status, note?)`** gained an optional `note` — captured via a small textarea in the drawer's `StatusActions` before Reject/On-hold, written onto the approval-log row and mirrored onto `backlog_items.remarks` for at-a-glance visibility. No separate "Approval Reference" field (present in the Excel-prompt version to record a manually-pasted email-confirmation string) — a real in-app Approve/Reject click *is* the confirmation record, so it was dropped as unnecessary given the app-native adaptation.
+- **Dashboard**: a 7th card, "By status" (`BacklogCategoryDonut`, fixed status→color map matching `BacklogStatusPill`), added to `backlog-dashboard.tsx`, scoped by the same Package selector as the rest.
+
 ### 27a. Original Excel workbook prompt (superseded by the app feature above, kept for reference)
 
 # Prompt: Add "Backlog Items – Registration" Tab with Client Approval Workflow
@@ -429,3 +441,80 @@ When I tell you which items the client has approved:
 4. Refresh any summary tab (LOB-wise, Module-wise, Type, Complexity, Go-Live Critical breakdowns) to include the newly moved items.
 
 Preserve all existing data, formulas, and formatting in the workbook. Ask me before changing anything in the existing main objects tab other than appending approved items and updating totals.
+# Prompt: Backlog Items — Project Manager Approval Workflow
+
+Copy everything below the line and paste it as your prompt (attach your project workbook with the "Backlog Items – Registration" tab when you use it).
+
+---
+
+My project workbook has a **"Backlog Items – Registration"** tab where new backlog items are registered with their efforts, company code, and costs (rates come from the Settings tab). I now need you to set up the **approval workflow mechanism** for these items. The approval goes to the **Project Manager first** — an approval email is sent to him, and once he confirms on the email, the item status changes from **Registered** to **Approved** and the team starts working on it. I must be able to send items for approval **individually or as a whole package**.
+
+## 1. Status Flow
+
+Update the Status dropdown in the Registration tab to follow this exact lifecycle:
+
+**Registered → Sent for PM Approval → Approved → In Progress → Completed**
+(with **Rejected** and **On Hold** as exit/parking states at the approval step)
+
+Rules:
+- Only items in **Registered** status can be sent for approval.
+- When I send an item (or package), set its status to **Sent for PM Approval** and stamp the **Sent Date**.
+- When the PM confirms by email, set status to **Approved**, stamp the **Approval Date**, and record the approver's name — the item is now cleared for work and can be moved to **In Progress**.
+- If the PM rejects or asks for changes, set status to **Rejected** (or back to **Registered** for rework) and capture his comments in the Remarks column.
+
+## 2. Approval Tracking Columns
+
+Add these columns to the Registration tab (keep existing formatting style):
+
+1. **Approval Mode** — dropdown: Individual / Package
+2. **Package ID** — auto-generated batch reference for grouped sends (e.g., PKG-001, PKG-002); blank for individual sends, which get an item reference instead (e.g., APR-ITM-007)
+3. **Sent for Approval Date**
+4. **Approver** — default: Project Manager's name (keep this configurable in the Settings tab: PM Name + PM Email)
+5. **Approval Date**
+6. **Approval Reference** — where I paste the email confirmation reference/date ("Confirmed via email dd-mm-yyyy")
+7. **PM Comments / Remarks**
+
+Apply conditional formatting by status: grey = Registered, yellow = Sent for PM Approval, green = Approved, red = Rejected, orange = On Hold, blue = In Progress.
+
+## 3. Sending for Approval — Two Modes
+
+When I say "send item X for approval" or "send items X, Y, Z as a package":
+
+**Individual mode:**
+- Draft an approval email to the PM for that single item containing: Item No., Company Code, Module, LOB, Type, full Description, Complexity, Go-Live Critical flag, Resources, effort breakdown (Dev / Fiori / Functional days), and Total Days + Total Cost (USD).
+- Set the item's status to **Sent for PM Approval**, mode = Individual, stamp the date, assign the approval reference.
+
+**Package mode:**
+- Generate the next **Package ID**, assign it to all selected items, set each to **Sent for PM Approval**.
+- Draft one consolidated approval email containing a summary table of all items in the package (Item No., Module, Type, short Description, Complexity, Total Days, Total Cost) plus **package totals** (combined effort days and combined cost), and the assumptions line (rates per the Settings tab, PMO/PGLS methodology).
+- The email must make clear the PM can approve the **whole package**, or approve/reject **specific items within it** by replying with the item numbers.
+
+**Email format (both modes):**
+- Professional internal tone (Yash Technologies / ShiftX project context), clear subject line like:
+  - Individual: "Approval Request – Backlog Item #07 – [short description] – [CR ref]"
+  - Package: "Approval Request – Backlog Package PKG-002 (5 items, 32.5 days, $18,406) – [CR ref]"
+- End with an explicit call to action: "Please reply to this email with your approval/rejection. Work will commence only after your confirmation."
+
+## 4. Processing the PM's Email Confirmation
+
+When I tell you the PM has replied (I'll paste his reply or summarize it):
+
+- **Full approval:** set all covered items to **Approved**, stamp Approval Date, fill Approver and Approval Reference, and list back to me which items are now cleared to start (so we can flip them to **In Progress** when work begins).
+- **Partial approval (package):** approve only the confirmed item numbers; set the rest to **Rejected** or **On Hold** per his reply, and copy his comments into PM Comments.
+- **Rejection / changes requested:** set status accordingly, capture comments, and if he asked for effort/cost revisions, help me update the item and re-send it (new send date, same item, incremented approval reference like APR-ITM-007-R2).
+
+Never mark an item Approved without an explicit confirmation from me that the PM has replied — the email confirmation is the approval record.
+
+## 5. Approval Log Tab
+
+Create an **"Approval Log"** tab as the audit trail. Every send and every decision gets a row:
+
+| Log ID | Date | Package/Item Ref | Items Covered | Action (Sent / Approved / Partially Approved / Rejected / Resent) | Approver | Total Days | Total Cost (USD) | Notes |
+
+Keep this log append-only — never edit or delete past rows. Add a small summary block at the top: total items sent, approved, rejected, pending, and the approved value to date.
+
+## 6. Dashboard Counters (optional but preferred)
+
+At the top of the Registration tab, add a compact status summary: count and total cost of items in each status (Registered / Sent for PM Approval / Approved / In Progress / Rejected), driven by formulas so it updates live.
+
+Preserve all existing data, formulas, and formatting. Rates and the PM's name/email must come from the Settings tab so they can be changed in one place.

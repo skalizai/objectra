@@ -15,6 +15,7 @@ import { ProjectPhaseToggle } from "@/components/settings/project-phase-toggle";
 import { SupportRoutingForm } from "@/components/settings/support-routing-form";
 import { SlaPolicyForm } from "@/components/settings/sla-policy-form";
 import { SlaEscalationForm } from "@/components/settings/sla-escalation-form";
+import { BacklogApproverForm } from "@/components/settings/backlog-approver-form";
 import { getSupportRouting, getSlaPolicies, getSlaEscalationTiers } from "@/lib/data/support";
 import type { NotificationSettings, Project } from "@/lib/types/database";
 import type { MemberWithMemberships } from "@/lib/data/members";
@@ -132,6 +133,11 @@ export default async function SettingsPage({
               <SlaEscalationForm
                 projectId={selectedProjectId}
                 tiers={slaEscalationTiers}
+                consultantOptions={consultantOptions}
+              />
+              <BacklogApproverForm
+                projectId={selectedProjectId}
+                approverId={selectedProject.backlog_approver_id}
                 consultantOptions={consultantOptions}
               />
             </>
