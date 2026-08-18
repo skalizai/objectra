@@ -176,6 +176,22 @@ export async function notifyBacklogPmApprovalRequest(
 
   const subject = `${project.name} — Backlog approval needed (${ref}) — ${items.length} item${items.length === 1 ? "" : "s"}`;
 
+  // Lets the approver act straight from the email without logging in --
+  // /api/backlog-approval trusts this token the same way /auth/confirm
+  // trusts a Supabase token_hash. One row per send; GET only renders a
+  // confirmation page, POST performs the mutation (see the route for why).
+  let approveUrl: string | undefined;
+  let rejectUrl: string | undefined;
+  const { data: tokenRow } = await admin
+    .from("backlog_approval_tokens")
+    .insert({ project_id: projectId, batch_ref: ref, item_ids: itemIds })
+    .select("token")
+    .maybeSingle();
+  if (tokenRow?.token) {
+    approveUrl = `${APP_URL}/api/backlog-approval?token=${tokenRow.token}&action=approve`;
+    rejectUrl = `${APP_URL}/api/backlog-approval?token=${tokenRow.token}&action=reject`;
+  }
+
   try {
     const result = await getResendClient().emails.send({
       from: EMAIL_FROM,
@@ -188,6 +204,8 @@ export async function notifyBacklogPmApprovalRequest(
         items: emailItems,
         totalDays,
         appUrl: APP_URL,
+        approveUrl,
+        rejectUrl,
       }),
     });
     await logEmail(admin, "backlog_pm_approval_request", approver.email, subject, projectId, result);

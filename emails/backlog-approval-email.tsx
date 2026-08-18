@@ -22,6 +22,8 @@ export interface BacklogApprovalEmailProps {
   items: BacklogApprovalItem[];
   totalDays: number;
   appUrl: string;
+  approveUrl?: string;
+  rejectUrl?: string;
 }
 
 function ItemRow({ item, isLast }: { item: BacklogApprovalItem; isLast: boolean }) {
@@ -74,6 +76,8 @@ export default function BacklogApprovalEmail({
   ],
   totalDays = 6,
   appUrl = "https://objectra.app",
+  approveUrl,
+  rejectUrl,
 }: BacklogApprovalEmailProps) {
   return (
     <EmailShellV2
@@ -132,21 +136,63 @@ export default function BacklogApprovalEmail({
       </table>
 
       <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, lineHeight: "20px" }}>
-        Effort is shown in days (1 day = 8 hours), broken down by Development, Functional, and Fiori work. Please reply to
-        confirm approval, request changes, or flag any item to defer. Approved items will be added to the project&apos;s
-        main object scope.
+        Effort is shown in days (1 day = 8 hours), broken down by Development, Functional, and Fiori work.{" "}
+        {approveUrl && rejectUrl
+          ? "Approve or reject this batch directly below, or open Objectra for full details."
+          : "Please reply to confirm approval, request changes, or flag any item to defer."}{" "}
+        Approved items will be added to the project&apos;s main object scope.
       </div>
 
       <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
         <tr><td height={26} style={{ fontSize: 1, lineHeight: "1px" }}>&nbsp;</td></tr>
       </table>
 
+      {approveUrl && rejectUrl && (
+        <>
+          <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+            <tr>
+              <td width="50%" style={{ paddingRight: 6 }}>
+                <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+                  <tr>
+                    <td align="center" style={{ backgroundColor: V2.goldDark, borderRadius: 10 }}>
+                      <a
+                        href={approveUrl}
+                        style={{ display: "block", padding: "13px 12px", fontFamily: FONT, fontSize: 14, fontWeight: 700, color: "#ffffff", textDecoration: "none", lineHeight: "18px" }}
+                      >
+                        Approve
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+              <td width="50%" style={{ paddingLeft: 6 }}>
+                <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+                  <tr>
+                    <td align="center" style={{ border: `1px solid ${V2.border}`, borderRadius: 10 }}>
+                      <a
+                        href={rejectUrl}
+                        style={{ display: "block", padding: "13px 12px", fontFamily: FONT, fontSize: 14, fontWeight: 700, color: V2.body, textDecoration: "none", lineHeight: "18px" }}
+                      >
+                        Reject
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+          <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+            <tr><td height={14} style={{ fontSize: 1, lineHeight: "1px" }}>&nbsp;</td></tr>
+          </table>
+        </>
+      )}
+
       <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
         <tr>
-          <td align="center" style={{ backgroundColor: V2.goldDark, borderRadius: 10 }}>
+          <td align="center" style={{ backgroundColor: approveUrl && rejectUrl ? "transparent" : V2.goldDark, border: approveUrl && rejectUrl ? `1px solid ${V2.border}` : "none", borderRadius: 10 }}>
             <a
               href={appUrl}
-              style={{ display: "block", padding: "14px 24px", fontFamily: FONT, fontSize: 15, fontWeight: 700, color: V2.headerBg, textDecoration: "none", lineHeight: "20px" }}
+              style={{ display: "block", padding: "14px 24px", fontFamily: FONT, fontSize: 15, fontWeight: 700, color: approveUrl && rejectUrl ? V2.body : V2.headerBg, textDecoration: "none", lineHeight: "20px" }}
             >
               Open Objectra &nbsp;&nbsp;→
             </a>
