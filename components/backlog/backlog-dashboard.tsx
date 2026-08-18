@@ -109,18 +109,19 @@ export function BacklogDashboard({
       .sort((a, b) => b.days - a.days);
   }, [scoped]);
 
-  // Package-wise always reflects every item regardless of the selector --
-  // scoping it to one package would just show a single 100% slice.
+  // Scoped like every other card, for consistency -- picking a package
+  // narrows this to just that one slice (trivial, but predictable: every
+  // card on the dashboard reacts to the selector the same way).
   const packageSlices = useMemo<CategorySlice[]>(() => {
     const counts = new Map<string, number>();
-    for (const item of items) {
+    for (const item of scoped) {
       const key = item.package ?? "Unassigned";
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([label, count]) => ({ label, count, color: PACKAGE_COLOR[label] ?? OTHER_COLOR }));
-  }, [items]);
+  }, [scoped]);
 
   const selectClass =
     "h-10 rounded-control border border-border-2 bg-surface-2 px-3 text-sm text-text focus:border-brass focus-visible:outline-none";
@@ -149,7 +150,7 @@ export function BacklogDashboard({
         <BacklogCategoryDonut title="By module" caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} data={moduleSlices} totalLabel="items" delay={0.06} />
         <BacklogCategoryDonut title="By LOB" caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} data={lobSlices} totalLabel="tags" delay={0.12} />
         <BacklogCategoryDonut title="By type" caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} data={typeSlices} totalLabel="items" delay={0.18} />
-        <BacklogCategoryDonut title="By package" caption="All items, every package" data={packageSlices} totalLabel="items" delay={0.24} />
+        <BacklogCategoryDonut title="By package" caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} data={packageSlices} totalLabel="items" delay={0.24} />
         <BacklogEffortTypeBar data={effortTypeData} caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} delay={0.3} />
         <BacklogModuleDaysBar data={moduleDaysData} caption={packageFilter === "all" ? undefined : `Scoped to ${packageFilter}`} delay={0.36} />
       </div>
