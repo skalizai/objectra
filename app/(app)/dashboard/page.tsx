@@ -105,11 +105,13 @@ export default async function DashboardPage({
               Registration & approval status {selectedProject ? `for ${selectedProject.name}` : "across every project"}.
             </p>
           </div>
-          {selectedProjectId && (
-            <Link href={`/projects/${selectedProjectId}/backlog`} className="text-sm underline" style={{ color: "var(--brass)" }}>
-              Open Backlog tab →
-            </Link>
-          )}
+          <Link
+            href={selectedProjectId ? `/projects/${selectedProjectId}/backlog` : "/projects"}
+            className="text-sm underline"
+            style={{ color: "var(--brass)" }}
+          >
+            {selectedProjectId ? "Open Backlog tab →" : "Browse projects →"}
+          </Link>
         </div>
         <ProjectBacklogSummary items={backlogItems} />
       </div>
@@ -122,11 +124,13 @@ export default async function DashboardPage({
               Hypercare ticket status {selectedProject ? `for ${selectedProject.name}` : "across every project"}.
             </p>
           </div>
-          {selectedProjectId && (
-            <Link href={`/projects/${selectedProjectId}/support`} className="text-sm underline" style={{ color: "var(--brass)" }}>
-              Open Support tab →
-            </Link>
-          )}
+          <Link
+            href={selectedProjectId ? `/projects/${selectedProjectId}/support` : "/projects"}
+            className="text-sm underline"
+            style={{ color: "var(--brass)" }}
+          >
+            {selectedProjectId ? "Open Support tab →" : "Browse projects →"}
+          </Link>
         </div>
 
         {selectedProjectId && !ticketsEnabled && (
