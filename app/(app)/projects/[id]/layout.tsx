@@ -7,7 +7,12 @@ import { WorkspaceTabs } from "@/components/projects/workspace-tabs";
 import { DeleteProjectButton } from "@/components/projects/delete-project-button";
 import { EditProjectButton } from "@/components/projects/edit-project-button";
 
-const STATUS_LABEL: Record<string, string> = { active: "Active", paused: "Paused", closed: "Closed" };
+const STATUS_LABEL: Record<string, string> = {
+  active: "Active",
+  paused: "Paused",
+  under_approval: "Under Approval",
+  closed: "Closed",
+};
 
 export default async function ProjectWorkspaceLayout({
   children,

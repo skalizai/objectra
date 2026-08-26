@@ -88,6 +88,7 @@ export function EditProjectButton({
               <select id="status" name="status" className={selectClass} defaultValue={project.status}>
                 <option value="active">Active</option>
                 <option value="paused">Paused</option>
+                <option value="under_approval">Under Approval</option>
                 <option value="closed">Closed</option>
               </select>
             </div>

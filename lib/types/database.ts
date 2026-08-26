@@ -2,7 +2,7 @@
 // `supabase gen types typescript` once a real project exists and keep the
 // hand-written shape in sync if you do.
 
-export type ProjectStatus = "active" | "paused" | "closed";
+export type ProjectStatus = "active" | "paused" | "closed" | "under_approval";
 export type ProjectPhase = "implementation" | "hypercare" | "support";
 export type ProjectMemberRole =
   | "project_manager"

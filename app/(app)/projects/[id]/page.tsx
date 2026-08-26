@@ -4,7 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getProjectById } from "@/lib/data/projects";
 import { listObjectsForProject } from "@/lib/data/objects";
 
-const STATUS_LABEL: Record<string, string> = { active: "Active", paused: "Paused", closed: "Closed" };
+const STATUS_LABEL: Record<string, string> = {
+  active: "Active",
+  paused: "Paused",
+  under_approval: "Under Approval",
+  closed: "Closed",
+};
 
 export default async function ProjectOverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

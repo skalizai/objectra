@@ -9,6 +9,7 @@ import type { ProjectWithPm } from "@/lib/data/projects";
 const STATUS_META: Record<ProjectWithPm["status"], { label: string; colorVar: string }> = {
   active: { label: "Active", colorVar: "var(--status-live)" },
   paused: { label: "Paused", colorVar: "var(--status-in-progress)" },
+  under_approval: { label: "Under Approval", colorVar: "var(--status-validation)" },
   closed: { label: "Closed", colorVar: "var(--text-3)" },
 };
 
