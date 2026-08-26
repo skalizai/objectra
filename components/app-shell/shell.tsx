@@ -7,6 +7,7 @@ import { IconMenu2, IconX } from "@tabler/icons-react";
 import { SidebarNav } from "@/components/app-shell/sidebar-nav";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { SignOutButton } from "@/components/app-shell/sign-out-button";
+import { IdleLogout } from "@/components/app-shell/idle-logout";
 import { PageTransition } from "@/components/app-shell/page-transition";
 import { Logo } from "@/components/ui/logo";
 import { NAV_BY_ROLE, type ViewerRole } from "@/lib/nav";
@@ -38,6 +39,8 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen">
+      <IdleLogout />
+
       {/* Desktop sidebar */}
       <aside
         className="hidden w-[236px] shrink-0 flex-col border-r border-border bg-sidebar drawer:flex"
