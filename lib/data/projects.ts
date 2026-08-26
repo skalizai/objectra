@@ -12,7 +12,7 @@ export async function listProjects(): Promise<ProjectWithPm[]> {
   const { data: projects } = await supabase
     .from("projects")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: true });
 
   const projectList = (projects ?? []) as Project[];
   if (projectList.length === 0) return [];
