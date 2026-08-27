@@ -16,7 +16,9 @@ import { SupportRoutingForm } from "@/components/settings/support-routing-form";
 import { SlaPolicyForm } from "@/components/settings/sla-policy-form";
 import { SlaEscalationForm } from "@/components/settings/sla-escalation-form";
 import { BacklogApproverForm } from "@/components/settings/backlog-approver-form";
+import { TeamsIntegrationForm } from "@/components/settings/teams-integration-form";
 import { getSupportRouting, getSlaPolicies, getSlaEscalationTiers } from "@/lib/data/support";
+import { getTeamsConnection, getIntegrationLog } from "@/lib/data/teams";
 import type { NotificationSettings, Project } from "@/lib/types/database";
 import type { MemberWithMemberships } from "@/lib/data/members";
 
@@ -45,8 +47,10 @@ export default async function SettingsPage({
   let slaPolicies: Awaited<ReturnType<typeof getSlaPolicies>> = [];
   let slaEscalationTiers: Awaited<ReturnType<typeof getSlaEscalationTiers>> = [];
   let consultantOptions: { id: string; full_name: string; email: string; primary_module: string | null }[] = [];
+  let teamsConnection: Awaited<ReturnType<typeof getTeamsConnection>> = null;
+  let integrationLog: Awaited<ReturnType<typeof getIntegrationLog>> = [];
   if (selectedProjectId) {
-    const [{ data }, { data: projectRow }, routing, policies, escalationTiers, { data: resourceRows }] =
+    const [{ data }, { data: projectRow }, routing, policies, escalationTiers, { data: resourceRows }, connection, log] =
       await Promise.all([
         supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
         supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
@@ -64,6 +68,8 @@ export default async function SettingsPage({
           .select("id, full_name, email, primary_module")
           .eq("org_id", viewer.profile.org_id)
           .order("full_name"),
+        getTeamsConnection(selectedProjectId),
+        getIntegrationLog(selectedProjectId),
       ]);
     settings = data;
     selectedProject = projectRow;
@@ -71,6 +77,8 @@ export default async function SettingsPage({
     slaPolicies = policies;
     slaEscalationTiers = escalationTiers;
     consultantOptions = resourceRows ?? [];
+    teamsConnection = connection;
+    integrationLog = log;
   }
 
   // Needed for the notification form's "statuses to include" checklist
@@ -140,6 +148,7 @@ export default async function SettingsPage({
                 approverId={selectedProject.backlog_approver_id}
                 consultantOptions={consultantOptions}
               />
+              <TeamsIntegrationForm projectId={selectedProjectId} connection={teamsConnection} log={integrationLog} />
             </>
           )}
         </div>

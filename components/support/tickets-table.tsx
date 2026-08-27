@@ -115,6 +115,11 @@ export function TicketsTable({
                   <div className="flex items-center gap-2.5">
                     <TicketGlyph module={t.module} size={22} />
                     <span className="min-w-0 truncate text-text">{t.subject}</span>
+                    {t.source === "teams" && (
+                      <span className="shrink-0 rounded-[6px] bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-2">
+                        Teams
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-2.5"><CriticalityPill criticality={t.criticality} /></td>

@@ -6,6 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getViewer } from "@/lib/auth/get-viewer";
 import { notifyTicketCreated, notifyTicketStatusChange, notifyTicketAssignment } from "@/lib/email/notify-ticket";
+import {
+  notifyTeamsTicketCreated,
+  notifyTeamsTicketStatusChange,
+  notifyTeamsTicketAssignment,
+} from "@/lib/teams/notify-teams";
 import { getTicketComments, getTicketEvents } from "@/lib/data/support";
 import type { Ticket, TicketCategory, TicketCriticality, TicketStatus } from "@/lib/types/database";
 
@@ -118,6 +123,7 @@ export async function createTicket(
   void draftId; // draft_id only scopes the pending storage path client-side
 
   await notifyTicketCreated(ticket.id);
+  await notifyTeamsTicketCreated(ticket.id);
 
   revalidatePath(`/projects/${projectId}/support`);
   revalidatePath("/my-tickets");
@@ -180,6 +186,7 @@ export async function consultantUpdateTicket(
 
   if (patch.status && before && patch.status !== before.status) {
     await notifyTicketStatusChange(ticketId, before.status, patch.status);
+    await notifyTeamsTicketStatusChange(ticketId, before.status, patch.status);
   }
   if (before) revalidatePath(`/projects/${before.project_id}/support`);
   revalidatePath("/my-work");
@@ -206,7 +213,9 @@ export async function raiserCloseOrReopenTicket(
 
   if (error) return { error: error.message };
 
-  await notifyTicketStatusChange(ticketId, "resolved", action === "close" ? "closed" : "reopened");
+  const newStatus = action === "close" ? "closed" : "reopened";
+  await notifyTicketStatusChange(ticketId, "resolved", newStatus);
+  await notifyTeamsTicketStatusChange(ticketId, "resolved", newStatus);
   if (before) revalidatePath(`/projects/${before.project_id}/support`);
   revalidatePath("/my-tickets");
   return { error: null };
@@ -237,6 +246,7 @@ export async function reassignTicket(ticketId: string, projectId: string, resour
   if (error) return { error: error.message };
 
   await notifyTicketAssignment(ticketId);
+  await notifyTeamsTicketAssignment(ticketId);
   revalidatePath(`/projects/${projectId}/support`);
   return { error: null };
 }
@@ -287,6 +297,7 @@ export async function managerUpdateTicket(
 
   if (patch.status && before && patch.status !== before.status) {
     await notifyTicketStatusChange(ticketId, before.status, patch.status);
+    await notifyTeamsTicketStatusChange(ticketId, before.status, patch.status);
   }
   revalidatePath(`/projects/${projectId}/support`);
   return { error: null };

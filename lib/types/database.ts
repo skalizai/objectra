@@ -397,8 +397,42 @@ export interface Ticket {
   sl2_alerted_at: string | null;
   sl3_alerted_at: string | null;
   external_ref_id: string | null;
+  source: "web" | "teams";
+  source_conversation_id: string | null;
+  source_message_id: string | null;
+  source_message_link: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TeamsConnection {
+  id: string;
+  project_id: string;
+  team_name: string | null;
+  channel_name: string | null;
+  outbound_webhook_url: string | null;
+  inbound_hmac_secret: string | null;
+  notify_created: boolean;
+  notify_status: boolean;
+  notify_sla: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type IntegrationLogDirection = "inbound" | "outbound";
+export type IntegrationLogStatus = "ok" | "failed";
+
+export interface IntegrationLogEntry {
+  id: string;
+  project_id: string;
+  direction: IntegrationLogDirection;
+  event: string;
+  ticket_id: string | null;
+  status: IntegrationLogStatus;
+  error: string | null;
+  payload_digest: string | null;
+  occurred_at: string;
 }
 
 export interface TicketComment {

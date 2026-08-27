@@ -109,10 +109,25 @@ function TicketDetailBody({
           <div className="text-sm text-text">{ticket.module}</div>
           <div className="font-mono text-xs text-text-3">{ticket.ticket_no ?? "Generating…"}</div>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {ticket.source === "teams" && (
+            <span className="rounded-[6px] bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-text-2">
+              Teams
+            </span>
+          )}
           <CriticalityPill criticality={ticket.criticality} />
         </div>
       </div>
+      {ticket.source === "teams" && ticket.source_message_link && (
+        <a
+          href={ticket.source_message_link}
+          target="_blank"
+          rel="noreferrer"
+          className="-mt-3 block text-xs text-text-3 hover:text-brass"
+        >
+          View original message →
+        </a>
+      )}
 
       <div>
         <Label>Description</Label>

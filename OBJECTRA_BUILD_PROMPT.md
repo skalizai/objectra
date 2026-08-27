@@ -527,3 +527,102 @@ Keep this log append-only — never edit or delete past rows. Add a small summar
 At the top of the Registration tab, add a compact status summary: count and total cost of items in each status (Registered / Sent for PM Approval / Approved / In Progress / Rejected), driven by formulas so it updates live.
 
 Preserve all existing data, formulas, and formatting. Rates and the PM's name/email must come from the Settings tab so they can be changed in one place.
+
+# Addendum 2 — Microsoft Teams Integration (Support / Ticketing)
+
+Paste this after the ticketing addendum (sections 14–22). It extends the support module so tickets can be **raised from a Teams group chat/channel** and ticket updates are **pushed back into Teams**. Everything else in the base spec and Addendum 1 applies unchanged.
+
+---
+
+## 23. What the Teams integration is
+
+Each project in hypercare/support usually already has a Teams channel where super users report issues in free text. This integration connects that channel to Objectra in both directions:
+
+- **Teams → Objectra (inbound):** a user @mentions the Objectra bot on a message (or uses a "Create ticket" message action). The bot opens an **Adaptive Card form** pre-filled with the message text; the user picks **module** and **criticality** and submits. Objectra creates the ticket through the exact same `create_ticket` server path as the web app — same auto-routing to the mapped consultant, same `ticket_no`, same SLA computation, same emails — and the bot replies **in-thread** with the ticket number, assignee and SLA due.
+- **Objectra → Teams (outbound):** ticket lifecycle events (created, assigned/re-routed, status change, resolved, SLA breach) post an **Adaptive Card** into the mapped project channel, with a deep link back to the ticket in Objectra.
+
+One Teams channel maps to one Objectra project. The Teams side never bypasses Objectra's rules — the bot is just another client of the same server actions and RLS-guarded data.
+
+## 24. Integration architecture (two tiers — build Tier A first)
+
+**Tier A (v1, low-friction, no Azure Bot registration):**
+
+- **Inbound:** a Teams **Outgoing Webhook** per team, named `Objectra`. When someone posts `@Objectra <text>` in the channel, Teams POSTs the message to `POST /api/teams/inbound`. Verify the request with the webhook's **HMAC security token** (constant-time compare of the `Authorization: HMAC <signature>` header against a hash of the raw body). Outgoing Webhooks can't open dialogs, so v1 parses a lightweight command grammar and the bot's JSON reply renders the confirmation card:
+  - `@Objectra ticket <module> <p1|p2|p3|p4> <subject — description…>` → create ticket.
+  - `@Objectra status <ticket_no>` → reply with current status/assignee/SLA.
+  - `@Objectra help` → usage card.
+  - Malformed input → reply with the expected format and the project's valid module list (never create a half-formed ticket; default criticality **P3** only when the module is valid and criticality is the only missing part).
+- **Outbound:** a Teams **Incoming Webhook / Workflows URL** per project channel, stored in Objectra. Server actions and the `sla-scan` job POST Adaptive Cards to it for ticket events. Treat the URL as a secret.
+
+**Tier B (upgrade path, note in README, don't build in v1):** a full **Bot Framework / Azure Bot** app with a messaging endpoint, "Create ticket" **message action** opening an Adaptive Card **dialog** (module dropdown, criticality radio, editable subject/description), proactive messages, and SSO identity via Microsoft Entra. The `/api/teams/inbound` handler and card templates should be structured so Tier B replaces the transport, not the ticket logic.
+
+## 25. Data model (amends sections 4 & 16)
+
+- **teams_connections** — per project: `project_id` (unique), `team_name`, `channel_name`, `outbound_webhook_url` (encrypted at rest via Supabase Vault or pgsodium), `inbound_hmac_secret` (encrypted), `notify_created bool`, `notify_status bool`, `notify_sla bool`, `is_active`. Only org_admin/PM can read/write (RLS), and the webhook URL is **write-only from the UI** (display masked, e.g. last 6 chars).
+- **tickets** — add `source` (enum: `web | teams`, default `web`), `source_conversation_id`, `source_message_id`, `source_message_link` (deep link back to the originating Teams message, shown on the ticket detail).
+- **integration_log** — `project_id`, `direction` (inbound/outbound), `event` (ticket_command/status_command/card_posted/…), `ticket_id`, `status` (ok/failed), `error`, `payload_digest`, `occurred_at`. Insert via service role; read for org_admin + PM. (Keep `email_log` for email only.)
+
+**Identity mapping:** the Teams payload includes the sender's name and AAD identifiers. Resolve the sender to a `profiles` row by **email/UPN match** (Tier A: from the payload where available; document that some tenants need Tier B for reliable email claims). Rules:
+
+- Matched profile that is an active `super_user` / PM / org_admin on the mapped project → ticket `raised_by` = that profile.
+- Matched profile without ticket-raising rights, or **no match** → do **not** create the ticket; reply with a card explaining they need to be invited to the project (and tell the PM via the unrouted/attention tile). Never create anonymous or service-account-owned tickets — that would break the per-raiser RLS model.
+
+## 26. Server routes & jobs (amends section 7 / 18)
+
+- **`POST /api/teams/inbound`** — HMAC-verified (per-project secret; identify the project by the webhook's team/channel ids in the payload against `teams_connections`). Parses commands, calls the existing `create_ticket` / status-lookup logic with the **service role but on behalf of the resolved profile** (set `raised_by` explicitly and re-check their project role in code, since this path doesn't run under the user's JWT). Replies synchronously with the confirmation/error card JSON. Log every request to `integration_log`. Idempotency: dedupe on (`source_message_id`) so Teams retries can't create duplicate tickets.
+- **Outbound poster** — a small server util `postTeamsCard(projectId, card)` used by: ticket create/route (with ticket_no, module, criticality pill colour, assignee, SLA due, "Open in Objectra" button), status changes and reassignment, resolution, and the **`sla-scan`** job (breach cards). Respect the per-project `notify_*` toggles; failures log to `integration_log` and must **never block** the underlying ticket operation (fire-and-forget with retry ×2, then give up and log).
+- **Adaptive Cards:** version 1.4, dark-friendly, minimal — title row with ticket_no in monospace-styled TextBlock, facts set (module, criticality, assignee, SLA due), action button deep-linking to `${APP_URL}/app/projects/{id}/support?ticket={ticket_no}`. Keep card templates in `lib/teams/cards.ts` so Tier B reuses them.
+
+New env vars: none global — secrets are **per-project rows** in `teams_connections` (managed in Settings), which keeps the app multi-tenant. `APP_URL` is already defined.
+
+## 27. Screens (amends sections 9 & 19)
+
+- **Settings → Integrations → Microsoft Teams** (per project, PM/org_admin): connection card with team/channel name, masked webhook URL + HMAC secret inputs, event toggles (created / status / SLA), **"Send test card"** button, connection status (last successful outbound, last inbound command), and a copyable setup guide (how to add the Outgoing Webhook and Incoming Webhook/Workflow in Teams, including pasting the generated HMAC secret). Show `integration_log` tail (last 20 events) here.
+- **Ticket detail** — when `source = teams`, show a small Teams badge next to the ticket number and a "View original message" link (`source_message_link`).
+- **Support dashboard** — the ticket table's source column/filter (web vs teams); the "attention" area also surfaces **rejected inbound attempts** (unmatched users) so the PM can invite them.
+
+Design stays on the locked system; the Teams badge uses `--text-2` on `--surface-2`, no brand-purple — keep the accent language brass.
+
+## 28. Security notes (amends section 5 / 17)
+
+- HMAC verification on every inbound request, constant-time compare, reject on clock-skewed replays where the payload timestamp is stale (> 5 min).
+- The inbound route runs with the service role, so it must **re-implement the authorization check in code**: resolved profile must be an active member with a ticket-raising role on the mapped project, and the project phase must allow tickets — mirror the RLS INSERT policy exactly, and add a SQL test that documents the parity.
+- Outbound cards are visible to everyone in the Teams channel: include **external-safe content only** (no internal comments, no resolution notes marked internal, no consultant effort data) — same redaction rule as raiser-facing emails.
+- Webhook URL + HMAC secret encrypted at rest; never returned to the client after save; rotating either is a single Settings action.
+
+## 29. Acceptance criteria (amends sections 11 & 20)
+
+- PM configures the Teams connection in Settings, "Send test card" lands an Adaptive Card in the channel, and the event is visible in the integration log.
+- A super user posts `@Objectra ticket MM p2 GRN failing for imported POs` in the mapped channel → a ticket is created with `source = teams`, routed to the MM consultant, numbered, SLA-stamped; the bot replies in-thread with ticket_no + assignee + SLA due; consultant/raiser emails still send; `integration_log` records the exchange.
+- The same Teams message retried/duplicated does **not** create a second ticket (dedupe on `source_message_id`).
+- A Teams user whose email doesn't match an invited project member gets a polite rejection card and **no ticket exists** (verified by query); the attempt appears in the PM's attention list.
+- An invalid HMAC signature is rejected with 401 and logged; nothing is created.
+- Consultant resolves the ticket in Objectra → a status card posts to the channel (respecting toggles), containing no internal notes.
+- `@Objectra status <ticket_no>` returns the current status only for tickets on that channel's project.
+- Disabling the connection (or a dead webhook URL) never blocks ticket operations in the app; failures are logged with retry evidence.
+
+## 30. Build order (amends section 13 / 21 — insert after 8d)
+
+8e. `teams_connections` + `integration_log` migrations, ticket `source_*` columns, Settings → Integrations UI with test-card send.
+8f. Outbound card util + wire into ticket create/status/`sla-scan` (toggle-aware, non-blocking).
+8g. Inbound webhook route: HMAC verify, command parser, identity resolution, dedupe, in-thread replies; SQL/integration tests for the authorization parity and rejection paths.
+8h. Docs: Teams-side setup guide in README + the Tier B (Azure Bot dialogs, message action, Entra SSO) upgrade notes.
+
+## 31. Non-goals (Teams v1)
+
+Azure Bot registration / message-action dialogs (Tier B), personal-scope bot chats, syncing the full comment thread bidirectionally, file attachments from Teams messages, Graph API channel-message subscriptions, multi-channel-per-project mappings, and Slack — but keep `teams_connections` generic enough (rename mentally to "chat connections") that a Slack row type could be added later.
+
+## 32. Implementation notes (post-launch — what actually shipped, and where it deviates from the addendum above)
+
+Tier A only, exactly as scoped — Tier B stays a documented non-goal. Six deviations from the pasted spec, found or decided during implementation:
+
+- **No refactor of `createTicket` needed.** Ticket numbering, auto-routing, and SLA-due computation all live in DB triggers (`tickets_01_set_ticket_no` / `tickets_02_auto_route`, 0026), which fire on any insert regardless of caller — the inbound webhook does its own `tickets` insert via `createAdminClient()` and gets identical behavior for free. `notifyTicketCreated()` (lib/email/notify-ticket.ts) was already fully session-independent and is called as-is.
+- **`tickets_set_ticket_no()` amended** (0043) so a `service_role` caller may set `raised_by` explicitly (it was previously always forced to `auth.uid()`, which is `NULL` under the service role — every Teams-created ticket would have come out with no raiser). Ordinary user sessions are unaffected; this only changes behavior for trusted server-side callers.
+- **Secret storage**: plain `text` columns on `teams_connections` behind org_admin/project-editor RLS, not Supabase Vault/pgsodium — consistent with every other project-config field in this app, no new Postgres extension.
+- **HMAC secret direction corrected**: Teams generates the Outgoing Webhook's security token itself and shows it once at setup — the admin pastes it into Objectra's "Outgoing Webhook HMAC secret" field. (The secret is Base64 as Teams displays it; verification decodes it to raw bytes as the HMAC key, matching Teams' own algorithm.)
+- **Connection lookup for inbound requests**: rather than trusting a specific team/channel-id field from the payload (inconsistent across tenants), the route tries the raw-body HMAC against every active connection's secret — the one that verifies is the target project. Simpler and more robust than a payload-field assumption that could only really be confirmed against a live tenant.
+- **Identity resolution is name-match only in v1**: Teams Outgoing Webhook payloads don't reliably carry an email/UPN claim, so the sender's display name is matched case-insensitively against active project members. No match, or more than one, means no ticket is created — Tier B's Bot Framework/Entra SSO path is the real fix for reliable identity.
+- **Support dashboard "attention" tile for rejected inbound attempts was scoped down**: rejected/failed inbound events are visible in the Settings → Microsoft Teams "Recent activity" log (last 20, all `integration_log` rows for the project) rather than a new dedicated tile on the support dashboard — the KPI row there is a plain counter grid with no existing detail-list surface to extend, and building one was out of scope for this pass.
+- Route URL corrected to this app's real route, `/projects/[id]/support` (the addendum's `/app/projects/...` doesn't exist here).
+
+Files: `supabase/migrations/0043_teams_integration.sql`; `lib/teams/{cards,post-card,notify-teams}.ts`; `lib/data/teams.ts`; `lib/actions/teams-settings.ts`; `app/api/teams/inbound/route.ts`; `components/settings/teams-integration-form.tsx`; ticket-actions/`sla-scan.ts` wiring; `Teams` badge in `ticket-detail-drawer.tsx` and `tickets-table.tsx`.

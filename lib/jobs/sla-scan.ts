@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifySlaAlert, notifySlaEscalation } from "@/lib/email/notify-ticket";
+import { notifyTeamsSlaBreach } from "@/lib/teams/notify-teams";
 import type { SlaEscalationTier, SlaEscalationTierName, Ticket } from "@/lib/types/database";
 
 export interface SlaScanResult {
@@ -57,6 +58,7 @@ export async function runSlaScan(options?: { projectId?: string }): Promise<SlaS
         .update({ sla_breached: true, sla_breach_alerted_at: new Date().toISOString() })
         .eq("id", ticket.id);
       await notifySlaAlert(ticket.id, false);
+      await notifyTeamsSlaBreach(ticket.id);
       result.breachesFlagged += 1;
       continue;
     }
