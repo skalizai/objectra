@@ -8,7 +8,7 @@ import { Input, Label } from "@/components/ui/input";
 import { useCompanyCodes, useComplexities, useDevTypes, useModules } from "@/components/providers/picklist-provider";
 import { updateBacklogItem, deleteBacklogItem, updateBacklogStatus, moveToObjects, sendForApproval, type FormActionState } from "@/lib/actions/backlog";
 import { BacklogStatusPill } from "@/components/backlog/backlog-status-pill";
-import { BACKLOG_PACKAGES, type BacklogItem, type BacklogItemStatus } from "@/lib/types/database";
+import { BACKLOG_PACKAGES, BACKLOG_STREAMS, type BacklogItem, type BacklogItemStatus } from "@/lib/types/database";
 
 const initialState: FormActionState = { error: null };
 const selectClass =
@@ -205,16 +205,29 @@ function BacklogItemForm({
           </div>
         </div>
 
-        <div>
-          <Label htmlFor="package">Package</Label>
-          {canEdit ? (
-            <select id="package" name="package" className={selectClass} defaultValue={item.package ?? ""}>
-              <option value="">—</option>
-              {BACKLOG_PACKAGES.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          ) : (
-            <p className="text-sm text-text-2">{item.package || "—"}</p>
-          )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="package">Package</Label>
+            {canEdit ? (
+              <select id="package" name="package" className={selectClass} defaultValue={item.package ?? ""}>
+                <option value="">—</option>
+                {BACKLOG_PACKAGES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            ) : (
+              <p className="text-sm text-text-2">{item.package || "—"}</p>
+            )}
+          </div>
+          <div>
+            <Label htmlFor="stream">Stream</Label>
+            {canEdit ? (
+              <select id="stream" name="stream" className={selectClass} defaultValue={item.stream ?? ""}>
+                <option value="">—</option>
+                {BACKLOG_STREAMS.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            ) : (
+              <p className="text-sm text-text-2">{item.stream || "—"}</p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

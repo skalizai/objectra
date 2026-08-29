@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/auth/get-viewer";
 import { notifyBacklogApprovalRequest, notifyBacklogPmApprovalRequest } from "@/lib/email/notify-backlog";
-import type { BacklogApprovalAction, BacklogItemStatus, BacklogPackage, ObjectType } from "@/lib/types/database";
+import type { BacklogApprovalAction, BacklogItemStatus, BacklogPackage, BacklogStream, ObjectType } from "@/lib/types/database";
 
 export interface FormActionState {
   error: string | null;
@@ -31,6 +31,11 @@ function readDays(formData: FormData, field: string): number {
 function readPackage(formData: FormData): BacklogPackage | null {
   const raw = String(formData.get("package") ?? "").trim();
   return raw ? (raw as BacklogPackage) : null;
+}
+
+function readStream(formData: FormData): BacklogStream | null {
+  const raw = String(formData.get("stream") ?? "").trim();
+  return raw ? (raw as BacklogStream) : null;
 }
 
 type DaysRow = { dev_days: number; fiori_days: number; func_days: number };
@@ -91,6 +96,7 @@ export async function createBacklogItem(
     lob: String(formData.get("lob") ?? "").trim() || null,
     dev_type: String(formData.get("dev_type") ?? "").trim() || null,
     package: readPackage(formData),
+    stream: readStream(formData),
     description,
     requested_by: String(formData.get("requested_by") ?? "").trim() || null,
     complexity,
@@ -135,6 +141,7 @@ export async function updateBacklogItem(
       lob: String(formData.get("lob") ?? "").trim() || null,
       dev_type: String(formData.get("dev_type") ?? "").trim() || null,
       package: readPackage(formData),
+      stream: readStream(formData),
       description,
       requested_by: String(formData.get("requested_by") ?? "").trim() || null,
       complexity,

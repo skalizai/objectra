@@ -484,6 +484,11 @@ export type BacklogItemStatus =
 export const BACKLOG_PACKAGES = ["Package 1", "Package 2", "Package 3", "Package 4"] as const;
 export type BacklogPackage = (typeof BACKLOG_PACKAGES)[number];
 
+/** Fixed set of 2 delivery waves -- same "fixed values, not an org-editable
+ * picklist" reasoning as BACKLOG_PACKAGES. */
+export const BACKLOG_STREAMS = ["Wave 1", "Wave 2"] as const;
+export type BacklogStream = (typeof BACKLOG_STREAMS)[number];
+
 /** Effort-in-days only -- no rate card, no cost figures anywhere in this
  * feature (removed post-launch at the user's request). */
 export interface BacklogItem {
@@ -495,6 +500,7 @@ export interface BacklogItem {
   lob: string | null;
   dev_type: string | null;
   package: BacklogPackage | null;
+  stream: BacklogStream | null;
   description: string;
   requested_by: string | null;
   complexity: string | null;

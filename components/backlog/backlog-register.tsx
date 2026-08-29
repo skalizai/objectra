@@ -9,7 +9,7 @@ import { BacklogStatusPill } from "@/components/backlog/backlog-status-pill";
 import { BacklogItemDrawer } from "@/components/backlog/backlog-item-drawer";
 import { BacklogDashboard } from "@/components/backlog/backlog-dashboard";
 import { sendForApproval, sendToClient } from "@/lib/actions/backlog";
-import type { BacklogItem, BacklogItemStatus, BacklogPackage } from "@/lib/types/database";
+import { BACKLOG_STREAMS, type BacklogItem, type BacklogItemStatus, type BacklogPackage, type BacklogStream } from "@/lib/types/database";
 
 const STATUS_OPTIONS: (BacklogItemStatus | "all")[] = [
   "all", "registered", "sent_for_approval", "approved", "rejected", "on_hold", "moved_to_objects",
@@ -136,6 +136,7 @@ export function BacklogRegister({
   const modules = useModules();
   const [search, setSearch] = useState("");
   const [moduleFilter, setModuleFilter] = useState("all");
+  const [streamFilter, setStreamFilter] = useState<BacklogStream | "all">("all");
   const [statusFilter, setStatusFilter] = useState<BacklogItemStatus | "all">("all");
   const [packageFilter, setPackageFilter] = useState<BacklogPackage | "all">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -146,11 +147,12 @@ export function BacklogRegister({
     return items.filter((i) => {
       if (q && !`${i.description} ${i.item_no ?? ""}`.toLowerCase().includes(q)) return false;
       if (moduleFilter !== "all" && i.module !== moduleFilter) return false;
+      if (streamFilter !== "all" && i.stream !== streamFilter) return false;
       if (statusFilter !== "all" && i.status !== statusFilter) return false;
       if (packageFilter !== "all" && i.package !== packageFilter) return false;
       return true;
     });
-  }, [items, search, moduleFilter, statusFilter, packageFilter]);
+  }, [items, search, moduleFilter, streamFilter, statusFilter, packageFilter]);
 
   // Checkboxes are selectable on both registered (-> send for approval)
   // and approved (-> send to client) rows; which action bar shows depends
@@ -203,6 +205,11 @@ export function BacklogRegister({
             {modules.map((m) => <option key={m.id} value={m.value}>{m.value}</option>)}
           </select>
         )}
+
+        <select value={streamFilter} onChange={(e) => setStreamFilter(e.target.value as BacklogStream | "all")} className={selectClass}>
+          <option value="all">All streams</option>
+          {BACKLOG_STREAMS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
       </div>
 
       {canEdit && (selectedRegisteredIds.length > 0 || selectedApprovedIds.length > 0) && (
@@ -228,12 +235,13 @@ export function BacklogRegister({
       )}
 
       <div className="scroll-x-top overflow-x-auto rounded-card border border-border">
-        <table className="w-full min-w-[1250px] border-collapse text-sm">
+        <table className="w-full min-w-[1350px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-left text-xs text-text-3">
               {canEdit && <th className="w-10 px-4 py-2.5"></th>}
               <th className="px-4 py-2.5 font-medium">Item no</th>
               <th className="px-4 py-2.5 font-medium">Package</th>
+              <th className="px-4 py-2.5 font-medium">Stream</th>
               <th className="px-4 py-2.5 font-medium">Description</th>
               <th className="px-4 py-2.5 font-medium">Module</th>
               <th className="px-4 py-2.5 font-medium">Type</th>
@@ -263,6 +271,7 @@ export function BacklogRegister({
                 )}
                 <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{item.item_no || "—"}</td>
                 <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.package || "—"}</td>
+                <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.stream || "—"}</td>
                 <td className="px-4 py-2.5" onClick={() => setOpenItem(item)}>
                   <span className="line-clamp-1 max-w-[320px] text-text">{item.description}</span>
                 </td>
