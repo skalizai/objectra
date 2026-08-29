@@ -125,6 +125,14 @@ export function AddBacklogItemButton({ projectId }: { projectId: string }) {
             </div>
           </div>
 
+          <div>
+            <Label htmlFor="dev_completed">Development completed</Label>
+            <select id="dev_completed" name="dev_completed" className={selectClass} defaultValue="no">
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label htmlFor="dev_days">Dev effort (days)</Label>

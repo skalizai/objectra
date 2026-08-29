@@ -505,6 +505,7 @@ export interface BacklogItem {
   requested_by: string | null;
   complexity: string | null;
   go_live_critical: boolean;
+  dev_completed: boolean;
   dev_days: number;
   fiori_days: number;
   func_days: number;

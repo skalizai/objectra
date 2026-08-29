@@ -266,6 +266,18 @@ function BacklogItemForm({
           </div>
         </div>
 
+        <div>
+          <Label htmlFor="dev_completed">Development completed</Label>
+          {canEdit ? (
+            <select id="dev_completed" name="dev_completed" className={selectClass} defaultValue={item.dev_completed ? "yes" : "no"}>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          ) : (
+            <p className="text-sm text-text-2">{item.dev_completed ? "Yes" : "No"}</p>
+          )}
+        </div>
+
         <div className="grid grid-cols-3 gap-3">
           <div>
             <Label htmlFor="dev_days">Dev days</Label>

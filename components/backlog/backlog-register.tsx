@@ -139,6 +139,7 @@ export function BacklogRegister({
   const [streamFilter, setStreamFilter] = useState<BacklogStream | "all">("all");
   const [statusFilter, setStatusFilter] = useState<BacklogItemStatus | "all">("all");
   const [packageFilter, setPackageFilter] = useState<BacklogPackage | "all">("all");
+  const [devCompletedFilter, setDevCompletedFilter] = useState<"all" | "yes" | "no">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openItem, setOpenItem] = useState<BacklogItem | null>(null);
 
@@ -150,9 +151,10 @@ export function BacklogRegister({
       if (streamFilter !== "all" && i.stream !== streamFilter) return false;
       if (statusFilter !== "all" && i.status !== statusFilter) return false;
       if (packageFilter !== "all" && i.package !== packageFilter) return false;
+      if (devCompletedFilter !== "all" && i.dev_completed !== (devCompletedFilter === "yes")) return false;
       return true;
     });
-  }, [items, search, moduleFilter, streamFilter, statusFilter, packageFilter]);
+  }, [items, search, moduleFilter, streamFilter, statusFilter, packageFilter, devCompletedFilter]);
 
   // Checkboxes are selectable on both registered (-> send for approval)
   // and approved (-> send to client) rows; which action bar shows depends
@@ -210,6 +212,12 @@ export function BacklogRegister({
           <option value="all">All streams</option>
           {BACKLOG_STREAMS.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+
+        <select value={devCompletedFilter} onChange={(e) => setDevCompletedFilter(e.target.value as "all" | "yes" | "no")} className={selectClass}>
+          <option value="all">Dev completed: all</option>
+          <option value="yes">Dev completed: yes</option>
+          <option value="no">Dev completed: no</option>
+        </select>
       </div>
 
       {canEdit && (selectedRegisteredIds.length > 0 || selectedApprovedIds.length > 0) && (
@@ -235,7 +243,7 @@ export function BacklogRegister({
       )}
 
       <div className="scroll-x-top overflow-x-auto rounded-card border border-border">
-        <table className="w-full min-w-[1350px] border-collapse text-sm">
+        <table className="w-full min-w-[1450px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-surface-2 text-left text-xs text-text-3">
               {canEdit && <th className="w-10 px-4 py-2.5"></th>}
@@ -250,6 +258,7 @@ export function BacklogRegister({
               <th className="px-4 py-2.5 font-medium">Func days</th>
               <th className="px-4 py-2.5 font-medium">Fiori days</th>
               <th className="px-4 py-2.5 font-medium">CR no</th>
+              <th className="px-4 py-2.5 font-medium">Dev completed</th>
               <th className="px-4 py-2.5 font-medium">Status</th>
             </tr>
           </thead>
@@ -282,6 +291,7 @@ export function BacklogRegister({
                 <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{item.func_days.toFixed(1)}</td>
                 <td className="px-4 py-2.5 font-mono text-xs text-text-2" onClick={() => setOpenItem(item)}>{item.fiori_days.toFixed(1)}</td>
                 <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.cr_no || "—"}</td>
+                <td className="px-4 py-2.5 text-text-2" onClick={() => setOpenItem(item)}>{item.dev_completed ? "Yes" : "No"}</td>
                 <td className="px-4 py-2.5" onClick={() => setOpenItem(item)}>
                   <BacklogStatusPill status={item.status} />
                 </td>
