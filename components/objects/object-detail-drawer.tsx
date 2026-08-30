@@ -212,9 +212,9 @@ function ObjectDetailForm({
           {canEdit ? (
             <input
               type="text"
-              maxLength={10}
+              maxLength={15}
               defaultValue={local.business_unit ?? ""}
-              onBlur={(e) => patch({ business_unit: e.target.value.slice(0, 10) || undefined })}
+              onBlur={(e) => patch({ business_unit: e.target.value.slice(0, 15) || undefined })}
               placeholder="e.g. US10"
               className={selectClass}
             />

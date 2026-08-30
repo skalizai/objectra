@@ -152,7 +152,7 @@ export function AddObjectButton({
             </div>
             <div>
               <Label htmlFor="business_unit">Business unit</Label>
-              <Input id="business_unit" name="business_unit" maxLength={10} placeholder="e.g. US10" />
+              <Input id="business_unit" name="business_unit" maxLength={15} placeholder="e.g. US10" />
             </div>
             <div>
               <Label htmlFor="stream">Stream</Label>

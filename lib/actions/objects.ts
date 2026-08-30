@@ -100,7 +100,7 @@ export async function createObject(
       fds_received: formData.get("fds_received") === "yes",
       description: String(formData.get("description") ?? "").trim() || null,
       company_code: companyCode || null,
-      business_unit: String(formData.get("business_unit") ?? "").trim().slice(0, 10) || null,
+      business_unit: String(formData.get("business_unit") ?? "").trim().slice(0, 15) || null,
       stream: stream || null,
       // Falls back to the DB default when the org has no statuses
       // configured yet (Settings → Object statuses) — should not normally
@@ -149,7 +149,7 @@ export async function updateObjectByManager(
   const viewer = await getViewer();
   if (!viewer) redirect("/sign-in");
 
-  if (patch.business_unit) patch.business_unit = patch.business_unit.slice(0, 10);
+  if (patch.business_unit) patch.business_unit = patch.business_unit.slice(0, 15);
 
   const supabase = await createClient();
   const { data: before } = await supabase.from("objects").select("*").eq("id", objectId).single();
