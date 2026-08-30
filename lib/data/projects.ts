@@ -1,10 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Project, Resource } from "@/lib/types/database";
+import type { Project, ProjectStatus, Resource } from "@/lib/types/database";
 
 export interface ProjectWithPm extends Project {
   pm: Pick<Resource, "id" | "full_name" | "email"> | null;
   object_count: number;
 }
+
+// Active work leads the list, Under Approval right behind it, then the
+// less-immediately-relevant statuses -- oldest-first (see the query below)
+// within each group.
+const STATUS_SORT_PRIORITY: Record<ProjectStatus, number> = {
+  active: 0,
+  under_approval: 1,
+  paused: 2,
+  closed: 3,
+};
 
 export async function listProjects(): Promise<ProjectWithPm[]> {
   const supabase = await createClient();
@@ -14,7 +24,9 @@ export async function listProjects(): Promise<ProjectWithPm[]> {
     .select("*")
     .order("created_at", { ascending: true });
 
-  const projectList = (projects ?? []) as Project[];
+  const projectList = ((projects ?? []) as Project[]).sort(
+    (a, b) => STATUS_SORT_PRIORITY[a.status] - STATUS_SORT_PRIORITY[b.status],
+  );
   if (projectList.length === 0) return [];
 
   const pmIds = Array.from(new Set(projectList.map((p) => p.pm_id).filter(Boolean))) as string[];
