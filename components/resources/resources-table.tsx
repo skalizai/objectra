@@ -128,10 +128,10 @@ export function ResourcesTable({
           <thead>
             <tr className="border-b border-border bg-surface-2 text-left text-xs text-text-3">
               <th className="px-4 py-2.5 font-medium">Resource</th>
+              <th className="px-4 py-2.5 font-medium">Allocation</th>
               <th className="px-4 py-2.5 font-medium">Type</th>
               <th className="px-4 py-2.5 font-medium">Role</th>
               <th className="px-4 py-2.5 font-medium">Area</th>
-              <th className="px-4 py-2.5 font-medium">Allocation</th>
               <th className="px-4 py-2.5 font-medium">Location</th>
               <th className="px-4 py-2.5 font-medium">Access</th>
               {canInvite && <th className="px-4 py-2.5 font-medium">Actions</th>}
@@ -161,12 +161,6 @@ export function ResourcesTable({
                   </div>
                 </td>
 
-                <td className="px-4 py-2.5 text-text-2">{resource.consultant_type || "—"}</td>
-
-                <td className="px-4 py-2.5 text-text-2">{resource.role_title || "—"}</td>
-
-                <td className="px-4 py-2.5 text-text-2">{resource.primary_module || "—"}</td>
-
                 <td className="px-4 py-2.5">
                   {resource.allocations.length > 0 ? (
                     <div className="space-y-0.5">
@@ -186,6 +180,12 @@ export function ResourcesTable({
                     <span className="font-mono text-text-3">{resource.allocation_pct ?? 50}% planned</span>
                   )}
                 </td>
+
+                <td className="px-4 py-2.5 text-text-2">{resource.consultant_type || "—"}</td>
+
+                <td className="px-4 py-2.5 text-text-2">{resource.role_title || "—"}</td>
+
+                <td className="px-4 py-2.5 text-text-2">{resource.primary_module || "—"}</td>
 
                 <td className="px-4 py-2.5 text-text-2">{LOCATION_LABEL[resource.location ?? ""] ?? "—"}</td>
 
