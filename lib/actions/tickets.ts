@@ -122,6 +122,81 @@ export async function createTicket(
   }
   void draftId; // draft_id only scopes the pending storage path client-side
 
+  // Manager-only overrides (RaiseTicketForm's isManager gate) -- manually
+  // attribute who reported it / who it's assigned to, overriding
+  // auto-routing, and optionally backdate when it was reported/resolved.
+  // For logging tickets that came in outside this form (phone/email/
+  // Teams) before or without going through live self-service raising.
+  // Only PM/technical_lead/org_admin ever see these fields, and only
+  // those roles have UPDATE rights on tickets per tickets_update RLS, so
+  // this plain session-scoped update is safe without the admin client.
+  const reportedByResourceId = String(formData.get("reported_by_resource_id") ?? "").trim();
+  const assignedToResourceId = String(formData.get("assigned_to_resource_id") ?? "").trim();
+  const reportedAtUtc = String(formData.get("reported_at_utc") ?? "").trim();
+  const resolvedAtUtc = String(formData.get("resolved_at_utc") ?? "").trim();
+
+  if (reportedByResourceId || assignedToResourceId || reportedAtUtc || resolvedAtUtc) {
+    const patch: Record<string, unknown> = {};
+
+    if (reportedByResourceId) {
+      const { data: resource } = await supabase
+        .from("resources")
+        .select("full_name, profile_id")
+        .eq("id", reportedByResourceId)
+        .maybeSingle();
+      if (!resource) return { error: "Selected 'Issue reported by' resource not found." };
+      if (!resource.profile_id) {
+        return { error: `${resource.full_name} hasn't accepted their invite yet — invite them from Resources first, then you can attribute tickets to them.` };
+      }
+      patch.raised_by = resource.profile_id;
+    }
+
+    if (assignedToResourceId) {
+      const { data: resource } = await supabase
+        .from("resources")
+        .select("full_name, profile_id")
+        .eq("id", assignedToResourceId)
+        .maybeSingle();
+      if (!resource) return { error: "Selected 'Issue assigned to' resource not found." };
+      if (!resource.profile_id) {
+        return { error: `${resource.full_name} hasn't accepted their invite yet — invite them from Resources first, then you can assign tickets to them.` };
+      }
+      patch.assigned_to = resource.profile_id;
+      if (ticket.status === "new") patch.status = "assigned";
+    }
+
+    const backdatedCreatedAt = reportedAtUtc && !Number.isNaN(new Date(reportedAtUtc).getTime()) ? reportedAtUtc : null;
+    if (backdatedCreatedAt) patch.created_at = backdatedCreatedAt;
+
+    const resolvedAt = resolvedAtUtc && !Number.isNaN(new Date(resolvedAtUtc).getTime()) ? resolvedAtUtc : null;
+    if (resolvedAt) {
+      patch.resolved_at = resolvedAt;
+      patch.status = "resolved";
+    }
+
+    // Recompute the SLA due date off the backdated report time, so a
+    // genuinely-past ticket doesn't show a misleading "just started"
+    // countdown — mirrors tickets_auto_route's own formula. Only matters
+    // while the ticket is still open; a resolved one is excluded from SLA
+    // scanning by status anyway.
+    if (backdatedCreatedAt && !resolvedAt) {
+      const { data: policy } = await supabase
+        .from("sla_policies")
+        .select("resolve_mins")
+        .eq("project_id", projectId)
+        .eq("criticality", criticality)
+        .maybeSingle();
+      if (policy?.resolve_mins) {
+        patch.sla_due_at = new Date(new Date(backdatedCreatedAt).getTime() + policy.resolve_mins * 60000).toISOString();
+      }
+    }
+
+    if (Object.keys(patch).length > 0) {
+      const { error: patchError } = await supabase.from("tickets").update(patch).eq("id", ticket.id);
+      if (patchError) return { error: patchError.message };
+    }
+  }
+
   await notifyTicketCreated(ticket.id);
   await notifyTeamsTicketCreated(ticket.id);
 

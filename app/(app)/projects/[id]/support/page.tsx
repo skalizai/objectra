@@ -34,7 +34,7 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
     // members the way it used to.
     supabase
       .from("resources")
-      .select("id, full_name, profile_id")
+      .select("id, full_name, profile_id, consultant_type")
       .eq("org_id", viewer.profile.org_id)
       .order("full_name"),
   ]);
@@ -43,6 +43,8 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
   const canRaise = ticketsEnabled && (canManage || viewer.projectRoles[id] === "super_user");
 
   const consultantOptions = resourceRows ?? [];
+  const functionalConsultants = consultantOptions.filter((r) => (r.consultant_type ?? "").trim().toLowerCase() === "functional");
+  const technicalConsultants = consultantOptions.filter((r) => (r.consultant_type ?? "").trim().toLowerCase() === "technical");
 
   return (
     <div className="space-y-6 pt-5">
@@ -52,7 +54,13 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
           <p className="mt-1 text-sm text-text-2">Hypercare ticket routing, SLA tracking, and the support queue.</p>
         </div>
         {canRaise && (
-          <RaiseTicketForm projectId={id} modules={picklists.modules.map((m) => m.value)} />
+          <RaiseTicketForm
+            projectId={id}
+            modules={picklists.modules.map((m) => m.value)}
+            isManager={canManage}
+            functionalConsultants={functionalConsultants}
+            technicalConsultants={technicalConsultants}
+          />
         )}
       </div>
 
