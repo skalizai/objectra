@@ -151,8 +151,17 @@ function TicketDetailBody({
         </div>
         <div>
           <Label>Assigned to</Label>
-          <p className="text-text-2">{ticket.assigned_to_name ?? "Unrouted"}</p>
+          <p className="text-text-2">
+            {ticket.assigned_to_name ??
+              (ticket.assigned_to_resource_name ? `${ticket.assigned_to_resource_name} (not yet invited)` : "Unrouted")}
+          </p>
         </div>
+        {ticket.reported_by_resource_name && (
+          <div>
+            <Label>Issue reported by</Label>
+            <p className="text-text-2">{ticket.reported_by_resource_name}</p>
+          </div>
+        )}
       </div>
 
       {canManage && (

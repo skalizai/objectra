@@ -381,6 +381,12 @@ export interface Ticket {
   status: TicketStatus;
   raised_by: string | null;
   assigned_to: string | null;
+  /** "Assign before invite" resource references (resources.id, not
+   * profiles.id) -- reported_by_resource_id is purely informational;
+   * assigned_to_resource_id records a manager's manual pick even when the
+   * resource has no login yet to resolve into the real assigned_to. */
+  reported_by_resource_id: string | null;
+  assigned_to_resource_id: string | null;
   related_object_id: string | null;
   attachment_paths: string[];
   resolution_note: string | null;

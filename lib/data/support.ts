@@ -13,6 +13,8 @@ import type {
 export interface TicketWithNames extends Ticket {
   raised_by_name: string | null;
   assigned_to_name: string | null;
+  reported_by_resource_name: string | null;
+  assigned_to_resource_name: string | null;
   project_name: string;
 }
 
@@ -22,22 +24,31 @@ async function withNames(supabase: Awaited<ReturnType<typeof createClient>>, tic
   const profileIds = Array.from(
     new Set(tickets.flatMap((t) => [t.raised_by, t.assigned_to]).filter((v): v is string => !!v)),
   );
+  const resourceIds = Array.from(
+    new Set(tickets.flatMap((t) => [t.reported_by_resource_id, t.assigned_to_resource_id]).filter((v): v is string => !!v)),
+  );
   const projectIds = Array.from(new Set(tickets.map((t) => t.project_id)));
 
-  const [{ data: profiles }, { data: projects }] = await Promise.all([
+  const [{ data: profiles }, { data: resources }, { data: projects }] = await Promise.all([
     profileIds.length
       ? supabase.from("profiles").select("id, full_name").in("id", profileIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    resourceIds.length
+      ? supabase.from("resources").select("id, full_name").in("id", resourceIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
     supabase.from("projects").select("id, name").in("id", projectIds),
   ]);
 
   const nameByProfile = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+  const nameByResource = new Map((resources ?? []).map((r) => [r.id, r.full_name]));
   const nameByProject = new Map((projects ?? []).map((p) => [p.id, p.name]));
 
   return tickets.map((t) => ({
     ...t,
     raised_by_name: t.raised_by ? (nameByProfile.get(t.raised_by) ?? null) : null,
     assigned_to_name: t.assigned_to ? (nameByProfile.get(t.assigned_to) ?? null) : null,
+    reported_by_resource_name: t.reported_by_resource_id ? (nameByResource.get(t.reported_by_resource_id) ?? null) : null,
+    assigned_to_resource_name: t.assigned_to_resource_id ? (nameByResource.get(t.assigned_to_resource_id) ?? null) : null,
     project_name: nameByProject.get(t.project_id) ?? "—",
   }));
 }
