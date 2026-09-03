@@ -353,15 +353,18 @@ export async function updateTicketCriticality(ticketId: string, projectId: strin
   return { error: null };
 }
 
-/** PM/technical_lead/org_admin updating status/resolution/effort on a
- * ticket they aren't personally assigned to — goes through the plain
- * RLS-checked update (tickets_update already grants editors full write),
- * unlike consultantUpdateTicket() which is restricted to the assignee via
- * the assigned_to = auth.uid() check inside the RPC. */
+/** PM/technical_lead/org_admin updating status/resolution/effort — or now
+ * module/subject/description, for correcting/editing a ticket's own
+ * fields after it's raised, same "edit tray mirrors the raise tray"
+ * fields as RaiseTicketForm — on a ticket they aren't personally assigned
+ * to. Goes through the plain RLS-checked update (tickets_update already
+ * grants editors full write), unlike consultantUpdateTicket() which is
+ * restricted to the assignee via the assigned_to = auth.uid() check
+ * inside the RPC. */
 export async function managerUpdateTicket(
   ticketId: string,
   projectId: string,
-  patch: { status?: TicketStatus; resolution_note?: string; effort_hours?: number },
+  patch: { status?: TicketStatus; resolution_note?: string; effort_hours?: number; module?: string; subject?: string; description?: string },
 ) {
   const supabase = await createClient();
   const { data: before } = await supabase.from("tickets").select("status").eq("id", ticketId).maybeSingle();

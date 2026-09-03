@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Drawer } from "@/components/ui/drawer";
-import { Label } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CriticalityPill } from "@/components/support/criticality-pill";
 import { TicketGlyph } from "@/components/support/ticket-glyph";
 import { DeleteTicketButton } from "@/components/support/delete-ticket-button";
+import { useModules } from "@/components/providers/picklist-provider";
 import {
   addTicketComment,
   consultantUpdateTicket,
@@ -34,6 +35,7 @@ const STATUS_LABEL: Record<TicketStatus, string> = {
 };
 
 const CONSULTANT_STATUSES: TicketStatus[] = ["assigned", "in_progress", "pending_user", "resolved"];
+const ALL_STATUSES = Object.keys(STATUS_LABEL) as TicketStatus[];
 
 function TicketDetailBody({
   ticket,
@@ -50,6 +52,7 @@ function TicketDetailBody({
   consultantOptions: { id: string; full_name: string; profile_id: string | null }[];
   onDeleted: () => void;
 }) {
+  const modules = useModules();
   const [comments, setComments] = useState<TicketCommentWithAuthor[]>([]);
   const [events, setEvents] = useState<TicketEventWithActor[]>([]);
   const [commentBody, setCommentBody] = useState("");
@@ -129,10 +132,46 @@ function TicketDetailBody({
         </a>
       )}
 
-      <div>
-        <Label>Description</Label>
-        <p className="whitespace-pre-wrap text-sm text-text-2">{ticket.description || "—"}</p>
-      </div>
+      {canManage ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="edit_module">Module</Label>
+              <select
+                id="edit_module"
+                className={selectClass}
+                defaultValue={ticket.module}
+                onBlur={(e) => void managerUpdateTicket(ticket.id, projectId, { module: e.target.value })}
+              >
+                {modules.map((m) => <option key={m.id} value={m.value}>{m.value}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="edit_subject">Subject</Label>
+              <Input
+                id="edit_subject"
+                defaultValue={ticket.subject}
+                onBlur={(e) => void managerUpdateTicket(ticket.id, projectId, { subject: e.target.value })}
+              />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="edit_description">Description</Label>
+            <textarea
+              id="edit_description"
+              defaultValue={ticket.description ?? ""}
+              rows={3}
+              onBlur={(e) => void managerUpdateTicket(ticket.id, projectId, { description: e.target.value })}
+              className="w-full resize-none rounded-control border border-border-2 bg-surface-2 px-3 py-2 text-sm text-text focus:border-brass focus-visible:outline-none"
+            />
+          </div>
+        </>
+      ) : (
+        <div>
+          <Label>Description</Label>
+          <p className="whitespace-pre-wrap text-sm text-text-2">{ticket.description || "—"}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
@@ -166,6 +205,17 @@ function TicketDetailBody({
 
       {canManage && (
         <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="edit_status">Status</Label>
+            <select
+              id="edit_status"
+              className={selectClass}
+              defaultValue={ticket.status}
+              onChange={(e) => void managerUpdateTicket(ticket.id, projectId, { status: e.target.value as TicketStatus })}
+            >
+              {ALL_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+            </select>
+          </div>
           <div>
             <Label>Reassign</Label>
             <select
