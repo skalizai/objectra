@@ -59,11 +59,11 @@ function TicketDetailBody({
   const [reassignError, setReassignError] = useState<string | null>(null);
 
   // The reassign picker offers every resource (invited or not — section
-  // 24), but the select's value has to be keyed by something stable to
-  // show who's *currently* assigned, and ticket.assigned_to is a profiles
-  // id while the options list is keyed by resources id — resolve the
-  // match via profile_id.
-  const currentResourceId = consultantOptions.find((c) => c.profile_id === ticket.assigned_to)?.id ?? "";
+  // 24). assigned_to_resource_id (0047) is the direct, always-populated
+  // record of who's picked; fall back to matching assigned_to by
+  // profile_id for tickets routed before that column existed.
+  const currentResourceId =
+    ticket.assigned_to_resource_id ?? consultantOptions.find((c) => c.profile_id === ticket.assigned_to)?.id ?? "";
 
   const isAssignee = ticket.assigned_to === viewerId;
   const isRaiser = ticket.raised_by === viewerId;

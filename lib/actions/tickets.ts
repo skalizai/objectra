@@ -297,25 +297,26 @@ export async function raiserCloseOrReopenTicket(
 /** PM/technical_lead/org_admin only, per the tickets_update RLS policy —
  * reassign to a different consultant. The picker offers the full org
  * resource roster (not just already-invited project members, same as
- * ticket routing — section 24), but tickets.assigned_to still has to be a
- * profiles id (someone who can actually log in and work it), so this
- * resolves resourceId -> resources.profile_id itself and returns a plain
- * message instead of silently no-oping if that resource hasn't accepted
- * their invite yet. */
+ * ticket routing — section 24). assigned_to_resource_id (0047) always
+ * records the pick, "assign before invite" style; assigned_to (the
+ * profiles id that actually drives notifications/RLS/"My work") is only
+ * set when that resource has a resolved login, and cleared otherwise so
+ * the drawer doesn't keep showing the previous assignee as still owning
+ * it — no error either way. */
 export async function reassignTicket(ticketId: string, projectId: string, resourceId: string) {
   const supabase = await createClient();
 
   const { data: resource } = await supabase
     .from("resources")
-    .select("full_name, profile_id")
+    .select("profile_id")
     .eq("id", resourceId)
     .maybeSingle();
   if (!resource) return { error: "Resource not found." };
-  if (!resource.profile_id) {
-    return { error: `${resource.full_name} hasn't accepted their invite yet — invite them from Resources first, then you can reassign to them.` };
-  }
 
-  const { error } = await supabase.from("tickets").update({ assigned_to: resource.profile_id }).eq("id", ticketId);
+  const { error } = await supabase
+    .from("tickets")
+    .update({ assigned_to_resource_id: resourceId, assigned_to: resource.profile_id ?? null })
+    .eq("id", ticketId);
   if (error) return { error: error.message };
 
   await notifyTicketAssignment(ticketId);
