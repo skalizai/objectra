@@ -340,12 +340,19 @@ export async function getSupportDashboardData(projectId?: string): Promise<Suppo
     .sort((a, b) => b.open - a.open)
     .slice(0, 8);
 
+  // Groups by whoever actually experienced the issue -- the "Issue
+  // reported by" tag (reported_by_resource_id) when the ticket was logged
+  // on someone's behalf, falling back to the literal submitter otherwise.
+  // Grouping by raised_by alone would attribute every ticket a PM logs for
+  // other people to the PM instead of who it's actually about.
   const raiserMap = new Map<string, { name: string; count: number }>();
   for (const t of named) {
-    if (!t.raised_by || !t.raised_by_name) continue;
-    const entry = raiserMap.get(t.raised_by) ?? { name: t.raised_by_name, count: 0 };
+    const key = t.reported_by_resource_id ?? t.raised_by;
+    const name = t.reported_by_resource_name ?? t.raised_by_name;
+    if (!key || !name) continue;
+    const entry = raiserMap.get(key) ?? { name, count: 0 };
     entry.count += 1;
-    raiserMap.set(t.raised_by, entry);
+    raiserMap.set(key, entry);
   }
   const topRaisers = Array.from(raiserMap.values())
     .sort((a, b) => b.count - a.count)
