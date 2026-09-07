@@ -359,6 +359,16 @@ export interface SlaEscalationTier {
   updated_at: string;
 }
 
+/** Project-configurable extra CC list for object status-change emails --
+ * picked from the resource roster, no login required. The project's PM
+ * (projects.pm_id) is always CC'd separately, unconditionally. */
+export interface ObjectStatusEmailRecipient {
+  id: string;
+  project_id: string;
+  resource_id: string;
+  created_at: string;
+}
+
 /** A resource on a tier's notify list — resolved straight to
  * resources.email (no login required, these are FYI broadcasts, not
  * ticket ownership). */

@@ -88,3 +88,25 @@ export async function getAuditLogForProject(projectId: string, limit = 25): Prom
     object_title: titleById.get(row.object_id) ?? "—",
   }));
 }
+
+export interface ObjectStatusEmailRecipientWithName {
+  id: string;
+  resource_id: string;
+  full_name: string;
+  email: string;
+}
+
+/** The project's configurable extra CC list for object status-change
+ * emails (0048) -- the project's own PM is always CC'd separately and
+ * isn't part of this list. */
+export async function getObjectStatusEmailRecipients(projectId: string): Promise<ObjectStatusEmailRecipientWithName[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("object_status_email_recipients")
+    .select("id, resource:resources(id, full_name, email)")
+    .eq("project_id", projectId);
+
+  return ((data ?? []) as unknown as { id: string; resource: { id: string; full_name: string; email: string } | null }[])
+    .filter((r): r is { id: string; resource: { id: string; full_name: string; email: string } } => !!r.resource)
+    .map((r) => ({ id: r.id, resource_id: r.resource.id, full_name: r.resource.full_name, email: r.resource.email }));
+}

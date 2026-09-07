@@ -17,8 +17,10 @@ import { SlaPolicyForm } from "@/components/settings/sla-policy-form";
 import { SlaEscalationForm } from "@/components/settings/sla-escalation-form";
 import { BacklogApproverForm } from "@/components/settings/backlog-approver-form";
 import { TeamsIntegrationForm } from "@/components/settings/teams-integration-form";
+import { ObjectStatusEmailForm } from "@/components/settings/object-status-email-form";
 import { getSupportRouting, getSlaPolicies, getSlaEscalationTiers } from "@/lib/data/support";
 import { getTeamsConnection, getIntegrationLog } from "@/lib/data/teams";
+import { getObjectStatusEmailRecipients } from "@/lib/data/objects";
 import type { NotificationSettings, Project } from "@/lib/types/database";
 import type { MemberWithMemberships } from "@/lib/data/members";
 
@@ -49,28 +51,39 @@ export default async function SettingsPage({
   let consultantOptions: { id: string; full_name: string; email: string; primary_module: string | null }[] = [];
   let teamsConnection: Awaited<ReturnType<typeof getTeamsConnection>> = null;
   let integrationLog: Awaited<ReturnType<typeof getIntegrationLog>> = [];
+  let objectStatusEmailRecipients: Awaited<ReturnType<typeof getObjectStatusEmailRecipients>> = [];
   if (selectedProjectId) {
-    const [{ data }, { data: projectRow }, routing, policies, escalationTiers, { data: resourceRows }, connection, log] =
-      await Promise.all([
-        supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
-        supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
-        getSupportRouting(selectedProjectId),
-        getSlaPolicies(selectedProjectId),
-        getSlaEscalationTiers(selectedProjectId),
-        // support_routing references resources, not profiles
-        // (0031_routing_uses_resources.sql) — a routing rule can be set up
-        // against any org resource regardless of invite status, so this is
-        // the full org roster, not just already-invited project members.
-        // Same roster backs SLA escalation recipients (email-only, no login
-        // needed at all there).
-        supabase
-          .from("resources")
-          .select("id, full_name, email, primary_module")
-          .eq("org_id", viewer.profile.org_id)
-          .order("full_name"),
-        getTeamsConnection(selectedProjectId),
-        getIntegrationLog(selectedProjectId),
-      ]);
+    const [
+      { data },
+      { data: projectRow },
+      routing,
+      policies,
+      escalationTiers,
+      { data: resourceRows },
+      connection,
+      log,
+      statusEmailRecipients,
+    ] = await Promise.all([
+      supabase.from("notification_settings").select("*").eq("project_id", selectedProjectId).maybeSingle(),
+      supabase.from("projects").select("*").eq("id", selectedProjectId).maybeSingle(),
+      getSupportRouting(selectedProjectId),
+      getSlaPolicies(selectedProjectId),
+      getSlaEscalationTiers(selectedProjectId),
+      // support_routing references resources, not profiles
+      // (0031_routing_uses_resources.sql) — a routing rule can be set up
+      // against any org resource regardless of invite status, so this is
+      // the full org roster, not just already-invited project members.
+      // Same roster backs SLA escalation recipients (email-only, no login
+      // needed at all there).
+      supabase
+        .from("resources")
+        .select("id, full_name, email, primary_module")
+        .eq("org_id", viewer.profile.org_id)
+        .order("full_name"),
+      getTeamsConnection(selectedProjectId),
+      getIntegrationLog(selectedProjectId),
+      getObjectStatusEmailRecipients(selectedProjectId),
+    ]);
     settings = data;
     selectedProject = projectRow;
     supportRouting = routing;
@@ -79,6 +92,7 @@ export default async function SettingsPage({
     consultantOptions = resourceRows ?? [];
     teamsConnection = connection;
     integrationLog = log;
+    objectStatusEmailRecipients = statusEmailRecipients;
   }
 
   // Needed for the notification form's "statuses to include" checklist
@@ -149,6 +163,12 @@ export default async function SettingsPage({
                 consultantOptions={consultantOptions}
               />
               <TeamsIntegrationForm projectId={selectedProjectId} connection={teamsConnection} log={integrationLog} />
+              <ObjectStatusEmailForm
+                projectId={selectedProjectId}
+                pmName={consultantOptions.find((c) => c.id === selectedProject!.pm_id)?.full_name ?? null}
+                recipients={objectStatusEmailRecipients}
+                consultantOptions={consultantOptions}
+              />
             </>
           )}
         </div>

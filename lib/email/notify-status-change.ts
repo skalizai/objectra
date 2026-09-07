@@ -20,7 +20,13 @@ type AssigneeRow = {
  * When it is checked, both the functional and technical consultants
  * currently assigned to the object are notified, except anyone whose own
  * Add/Edit Resource "Email" checkbox is unchecked
- * (resources.email_notifications_enabled) — a per-recipient opt-out.
+ * (resources.email_notifications_enabled) — a per-recipient opt-out. CC'd:
+ * the project's own PM (projects.pm_id) always, plus whoever's configured
+ * in Settings → this project's "Object status emails" list (0048) — both
+ * resolved straight from the resource roster, no login required. This
+ * replaces the old hard-coded "every active project_members row with role
+ * project_manager/technical_lead/pmo" CC, which wasn't configurable and
+ * required an accepted invite.
  * Also silently no-ops if nobody eligible is assigned, or if Resend isn't
  * configured. A failed send is logged, never thrown — it should never
  * block the caller's own update. */
@@ -35,7 +41,7 @@ async function sendObjectNotification(
 
   const [{ data: object }, { data: project }] = await Promise.all([
     admin.from("objects").select("*").eq("id", objectId).maybeSingle(),
-    admin.from("projects").select("id, name, org_id").eq("id", projectId).maybeSingle(),
+    admin.from("projects").select("id, name, org_id, pm_id").eq("id", projectId).maybeSingle(),
   ]);
   if (!object || !project) return;
   const objectRow = object as ObjectRow;
@@ -64,17 +70,18 @@ async function sendObjectNotification(
   const statusColor = statusPicklist.color ?? FALLBACK_STATUS_HEX;
   const pipelineStatuses = ((orgStatuses ?? []) as { value: string }[]).map((s) => s.value);
 
-  const [{ data: assignments }, { data: members }] = await Promise.all([
+  const [{ data: assignments }, { data: pmResource }, { data: extraRecipients }] = await Promise.all([
     admin
       .from("object_assignments")
       .select("assigned_role, resource:resources(full_name, email, email_notifications_enabled)")
       .eq("object_id", objectId),
+    project.pm_id
+      ? admin.from("resources").select("email, email_notifications_enabled").eq("id", project.pm_id).maybeSingle()
+      : Promise.resolve({ data: null }),
     admin
-      .from("project_members")
-      .select("profile:profiles(email)")
-      .eq("project_id", projectId)
-      .eq("is_active", true)
-      .in("role", ["project_manager", "technical_lead", "pmo"]),
+      .from("object_status_email_recipients")
+      .select("resource:resources(email, email_notifications_enabled)")
+      .eq("project_id", projectId),
   ]);
 
   const rows = (assignments ?? []) as unknown as AssigneeRow[];
@@ -88,8 +95,11 @@ async function sendObjectNotification(
   if (toEmails.length === 0) return; // nobody assigned (or opted out) to notify
 
   const ccSet = new Set<string>();
-  for (const m of (members ?? []) as unknown as { profile: { email: string } | null }[]) {
-    if (m.profile?.email) ccSet.add(m.profile.email);
+  if (pmResource?.email && pmResource.email_notifications_enabled !== false) ccSet.add(pmResource.email);
+  for (const r of (extraRecipients ?? []) as unknown as {
+    resource: { email: string; email_notifications_enabled: boolean } | null;
+  }[]) {
+    if (r.resource?.email && r.resource.email_notifications_enabled !== false) ccSet.add(r.resource.email);
   }
   for (const email of toEmails) ccSet.delete(email); // never cc someone already in "to"
 

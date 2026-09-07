@@ -626,3 +626,13 @@ Tier A only, exactly as scoped — Tier B stays a documented non-goal. Six devia
 - Route URL corrected to this app's real route, `/projects/[id]/support` (the addendum's `/app/projects/...` doesn't exist here).
 
 Files: `supabase/migrations/0043_teams_integration.sql`; `lib/teams/{cards,post-card,notify-teams}.ts`; `lib/data/teams.ts`; `lib/actions/teams-settings.ts`; `app/api/teams/inbound/route.ts`; `components/settings/teams-integration-form.tsx`; ticket-actions/`sla-scan.ts` wiring; `Teams` badge in `ticket-detail-drawer.tsx` and `tickets-table.tsx`.
+
+## 33. Object status-change email CC made project-configurable (added post-launch)
+
+Object status-change/reassignment emails (`notifyObjectStatusChange`/`notifyObjectAssigneeChange`, `lib/email/notify-status-change.ts`) previously CC'd every active `project_members` row with role in `(project_manager, technical_lead, pmo)` — hard-coded, not configurable from the UI, and required that person to have already accepted their Objectra invite (an uninvited PMO/PM has no `project_members` row at all).
+
+- **CC is now**: the project's own PM (`projects.pm_id`, resolved straight to the resource's email) always, plus whoever's added to that project's new **Settings → "Object status emails"** list — same "assign before invite" pattern as SLA escalation recipients (section 24/0032): picked from the resource roster, no login required.
+- **`object_status_email_recipients`** (new table, `0048_object_status_email_recipients.sql`) — `project_id`, `resource_id`, unique together. RLS: select for `is_org_admin()`/`is_project_member`, write for `is_org_admin()`/`is_project_editor`.
+- `technical_lead` was dropped from the CC list entirely — that role is typically already the object's assigned technical consultant (already in the `to` list), and wasn't part of what was asked for here.
+- `components/settings/object-status-email-form.tsx` (new) — add/remove recipient list, mirrors `SlaEscalationForm`'s pattern but flat (no tiers). Shows the resolved PM's name in its description text.
+- `lib/actions/objects.ts`: `addObjectStatusEmailRecipient`/`removeObjectStatusEmailRecipient`. `lib/data/objects.ts`: `getObjectStatusEmailRecipients`.

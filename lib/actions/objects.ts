@@ -215,6 +215,39 @@ export async function deleteObject(objectId: string, projectId: string) {
   return { error: null };
 }
 
+export interface SimpleActionState {
+  error: string | null;
+  success: boolean;
+}
+
+/** Adds one resource to a project's object-status-email CC list (0048) --
+ * picked from the roster, no login required. */
+export async function addObjectStatusEmailRecipient(projectId: string, resourceId: string): Promise<SimpleActionState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/sign-in");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("object_status_email_recipients")
+    .upsert({ project_id: projectId, resource_id: resourceId }, { onConflict: "project_id,resource_id" });
+
+  if (error) return { error: error.message, success: false };
+  revalidatePath("/settings");
+  return { error: null, success: true };
+}
+
+export async function removeObjectStatusEmailRecipient(recipientId: string): Promise<SimpleActionState> {
+  const viewer = await getViewer();
+  if (!viewer) redirect("/sign-in");
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("object_status_email_recipients").delete().eq("id", recipientId);
+  if (error) return { error: error.message, success: false };
+
+  revalidatePath("/settings");
+  return { error: null, success: true };
+}
+
 /** Member self-service update — routes through the member_update_object()
  * RPC so only status/admin_note/comments/comments2 on assigned objects can
  * change, per section 5. */
