@@ -137,8 +137,8 @@ export async function notifyTicketCreated(ticketId: string) {
 }
 
 /** Fires on initial auto-routing (from notifyTicketCreated) and on manual
- * reassignment (reassignTicket action) — notifies the newly assigned
- * consultant plus the project's PM/technical_lead(s). */
+ * reassignment (reassignTicket action) — TO the newly assigned consultant,
+ * CC'd to the raiser and the project's PM/technical_lead(s). */
 export async function notifyTicketAssignment(ticketId: string) {
   if (!process.env.RESEND_API_KEY) return;
   const admin = createAdminClient();
@@ -154,6 +154,7 @@ export async function notifyTicketAssignment(ticketId: string) {
   const raiser = await getContact(admin, ticket.raised_by);
   const editorEmails = await getProjectEditorEmails(admin, project.id);
   const ccSet = new Set(editorEmails);
+  if (raiser && !raiser.optedOut) ccSet.add(raiser.email);
   ccSet.delete(assignee.email);
 
   const subject = `${ticket.ticket_no ?? "Ticket"} routed to you — ${ticket.subject} (${project.name})`;
