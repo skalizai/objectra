@@ -53,6 +53,10 @@ export function ObjectsRegister({
     setItems((prev) => prev.map((o) => (o.id === objectId ? { ...o, title } : o)));
   }
 
+  function handleDeleted(objectId: string) {
+    setItems((prev) => prev.filter((o) => o.id !== objectId));
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((o) => {
@@ -174,6 +178,7 @@ export function ObjectsRegister({
         resources={resources}
         onClose={() => setSelected(null)}
         onTitleChange={handleTitleChange}
+        onDeleted={handleDeleted}
       />
     </div>
   );

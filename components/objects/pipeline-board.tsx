@@ -50,6 +50,10 @@ export function PipelineBoard({
     setItems((prev) => prev.map((o) => (o.id === objectId ? { ...o, title } : o)));
   }
 
+  function handleDeleted(objectId: string) {
+    setItems((prev) => prev.filter((o) => o.id !== objectId));
+  }
+
   // Only show a lane for statuses that currently have an object in them —
   // derived from `items` (not the full statuses picklist), so moving the
   // last object out of a lane drops it immediately, and moving one into a
@@ -123,6 +127,7 @@ export function PipelineBoard({
         resources={resources}
         onClose={() => setSelected(null)}
         onTitleChange={handleTitleChange}
+        onDeleted={handleDeleted}
       />
     </>
   );

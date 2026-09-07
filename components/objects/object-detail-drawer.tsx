@@ -12,6 +12,7 @@ import {
   useStreams,
 } from "@/components/providers/picklist-provider";
 import { setObjectAssignee, updateObjectByManager } from "@/lib/actions/objects";
+import { DeleteObjectButton } from "@/components/objects/delete-object-button";
 import type { ObjectWithAssignees } from "@/lib/data/objects";
 import type { AssignedRole, ConsultantType } from "@/lib/types/database";
 
@@ -80,12 +81,14 @@ function ObjectDetailForm({
   canEdit,
   resources,
   onTitleChange,
+  onDeleted,
 }: {
   object: ObjectWithAssignees;
   projectId: string;
   canEdit: boolean;
   resources: ResourceOption[];
   onTitleChange?: (objectId: string, title: string) => void;
+  onDeleted?: () => void;
 }) {
   const modules = useModules();
   const complexities = useComplexities();
@@ -311,6 +314,17 @@ function ObjectDetailForm({
           <p className="text-sm text-text-2">{local.admin_note || "—"}</p>
         )}
       </div>
+
+      {canEdit && (
+        <div className="border-t border-border pt-4">
+          <DeleteObjectButton
+            objectId={local.id}
+            objectLabel={local.wricef_id || local.title}
+            projectId={projectId}
+            onDeleted={() => onDeleted?.()}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -322,6 +336,7 @@ export function ObjectDetailDrawer({
   resources,
   onClose,
   onTitleChange,
+  onDeleted,
 }: {
   object: ObjectWithAssignees | null;
   projectId: string;
@@ -329,6 +344,9 @@ export function ObjectDetailDrawer({
   resources: ResourceOption[];
   onClose: () => void;
   onTitleChange?: (objectId: string, title: string) => void;
+  /** Called after a successful delete, in addition to onClose — lets the
+   * parent (ObjectsRegister/PipelineBoard) drop the row from its own list. */
+  onDeleted?: (objectId: string) => void;
 }) {
   return (
     <Drawer open={!!object} onClose={onClose} title={object?.title ?? ""} width={480}>
@@ -340,6 +358,10 @@ export function ObjectDetailDrawer({
           canEdit={canEdit}
           resources={resources}
           onTitleChange={onTitleChange}
+          onDeleted={() => {
+            onDeleted?.(object.id);
+            onClose();
+          }}
         />
       )}
     </Drawer>

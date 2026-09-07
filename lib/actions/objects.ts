@@ -203,6 +203,18 @@ export async function setObjectAssignee(
   return { error: null };
 }
 
+/** PM/technical_lead/org_admin only, per the objects_delete RLS policy
+ * (0012). object_assignments/audit_log rows reference object_id on delete
+ * cascade, so no manual cleanup is needed here. */
+export async function deleteObject(objectId: string, projectId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("objects").delete().eq("id", objectId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/projects/${projectId}`);
+  return { error: null };
+}
+
 /** Member self-service update — routes through the member_update_object()
  * RPC so only status/admin_note/comments/comments2 on assigned objects can
  * change, per section 5. */
