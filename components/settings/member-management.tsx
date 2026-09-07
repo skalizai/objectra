@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { setMemberActive, updateMemberName, updateMemberProjectRole } from "@/lib/actions/settings";
+import { IconAlertCircle } from "@tabler/icons-react";
+import { setMemberActive, updateMemberEmail, updateMemberName, updateMemberProjectRole } from "@/lib/actions/settings";
 import type { MemberWithMemberships } from "@/lib/data/members";
 import type { ProjectMemberRole } from "@/lib/types/database";
 
@@ -27,14 +28,31 @@ export function MemberManagement({ members }: { members: MemberWithMemberships[]
     setPrevMembers(members);
     setRows(members);
   }
+  const [emailErrors, setEmailErrors] = useState<Record<string, string>>({});
+
+  async function saveEmail(memberId: string, currentEmail: string, nextEmail: string) {
+    if (nextEmail === currentEmail) return;
+    setEmailErrors((prev) => {
+      const next = { ...prev };
+      delete next[memberId];
+      return next;
+    });
+    const result = await updateMemberEmail(memberId, nextEmail);
+    if (result.error) {
+      setEmailErrors((prev) => ({ ...prev, [memberId]: result.error! }));
+      return;
+    }
+    setRows((prev) => prev.map((r) => (r.id === memberId ? { ...r, email: nextEmail } : r)));
+  }
 
   return (
     <div className="rounded-card border border-border bg-surface p-5" style={{ boxShadow: "var(--shadow-card)" }}>
       <h3 className="font-display text-sm font-semibold">Member management</h3>
       <p className="mt-1 text-xs text-text-3">
-        Edit a member&apos;s name or their role on each project — Project Manager and Technical Lead can
-        manage the project; PMO is CC&apos;d on status emails but can&apos;t edit; Member is invite-only
-        and can only update status/comments on their own assigned objects.
+        Edit a member&apos;s name, login email, or their role on each project — Project Manager and
+        Technical Lead can manage the project; PMO is CC&apos;d on status emails but can&apos;t edit; Member
+        is invite-only and can only update status/comments on their own assigned objects. Changing the email
+        here changes what they sign in with.
       </p>
 
       <ul className="mt-4 divide-y divide-border">
@@ -52,7 +70,18 @@ export function MemberManagement({ members }: { members: MemberWithMemberships[]
                     void updateMemberName(m.id, fullName);
                   }}
                 />
-                <div className="mt-0.5 text-xs text-text-3">{m.email}</div>
+                <input
+                  type="email"
+                  defaultValue={m.email}
+                  className={`${inputClass} mt-0.5 w-full max-w-xs text-xs text-text-3`}
+                  onBlur={(e) => void saveEmail(m.id, m.email, e.target.value.trim())}
+                />
+                {emailErrors[m.id] && (
+                  <div className="mt-0.5 flex items-center gap-1 text-[11px]" style={{ color: "var(--status-overdue)" }}>
+                    <IconAlertCircle size={11} />
+                    {emailErrors[m.id]}
+                  </div>
+                )}
               </div>
 
               <label className="flex items-center gap-2 text-xs text-text-2">

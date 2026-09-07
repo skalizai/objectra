@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getViewer } from "@/lib/auth/get-viewer";
 import { runWeeklyDigest } from "@/lib/jobs/weekly-digest";
 import type { DigestDay, ProjectMemberRole } from "@/lib/types/database";
@@ -111,6 +112,32 @@ export async function updateMemberName(profileId: string, fullName: string) {
     .from("profiles")
     .update({ full_name: fullName.trim() })
     .eq("id", profileId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  return { error: null };
+}
+
+/** Admin editing someone else's login email — changes the actual
+ * auth.users email (via the admin API, pre-confirmed so they're not
+ * locked out pending a confirmation click) as well as the profiles.email
+ * mirror, so the two never drift apart and this person logs in with
+ * whatever's shown here going forward. */
+export async function updateMemberEmail(profileId: string, email: string) {
+  const viewer = await getViewer();
+  if (!viewer || viewer.role !== "org_admin") return { error: "Not authorized." };
+
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed || !trimmed.includes("@")) return { error: "Enter a valid email address." };
+
+  const admin = createAdminClient();
+  const { error: authError } = await admin.auth.admin.updateUserById(profileId, {
+    email: trimmed,
+    email_confirm: true,
+  });
+  if (authError) return { error: authError.message };
+
+  const { error } = await admin.from("profiles").update({ email: trimmed }).eq("id", profileId);
   if (error) return { error: error.message };
 
   revalidatePath("/settings");
