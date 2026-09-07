@@ -124,7 +124,7 @@ export function TicketsTable({
                 </td>
                 <td className="px-4 py-2.5"><CriticalityPill criticality={t.criticality} /></td>
                 <td className="px-4 py-2.5 text-text-2">{t.assigned_to_name ?? "Unrouted"}</td>
-                <td className="px-4 py-2.5 text-text-2">{t.raised_by_name ?? "—"}</td>
+                <td className="px-4 py-2.5 text-text-2">{t.reported_by_resource_name ?? t.raised_by_name ?? "—"}</td>
                 <td className="px-4 py-2.5 font-mono text-xs" style={{ color: t.sla_breached ? "var(--status-overdue)" : undefined }}>
                   {t.sla_due_at ? format(new Date(t.sla_due_at), "dd MMM, h:mm a") : "—"}
                 </td>

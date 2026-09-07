@@ -29,24 +29,46 @@ async function withNames(supabase: Awaited<ReturnType<typeof createClient>>, tic
   );
   const projectIds = Array.from(new Set(tickets.map((t) => t.project_id)));
 
-  const [{ data: profiles }, { data: resources }, { data: projects }] = await Promise.all([
+  const [{ data: profiles }, { data: resources }, { data: resourcesByProfile }, { data: projects }] = await Promise.all([
     profileIds.length
       ? supabase.from("profiles").select("id, full_name").in("id", profileIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
     resourceIds.length
       ? supabase.from("resources").select("id, full_name").in("id", resourceIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    // Same resource-preferred lookup notify-ticket.ts's getContact uses for
+    // the actual email address — a resource's roster name/email is
+    // editable any time, while the login profile's name locks in at
+    // invite time, so this keeps the displayed assignee in sync with
+    // wherever the notification actually went.
+    profileIds.length
+      ? supabase.from("resources").select("profile_id, full_name").in("profile_id", profileIds)
+      : Promise.resolve({ data: [] as { profile_id: string; full_name: string }[] }),
     supabase.from("projects").select("id, name").in("id", projectIds),
   ]);
 
   const nameByProfile = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
   const nameByResource = new Map((resources ?? []).map((r) => [r.id, r.full_name]));
+  const resourceNameByProfile = new Map<string, string>();
+  for (const r of (resourcesByProfile ?? []) as { profile_id: string; full_name: string }[]) {
+    if (!resourceNameByProfile.has(r.profile_id)) resourceNameByProfile.set(r.profile_id, r.full_name);
+  }
   const nameByProject = new Map((projects ?? []).map((p) => [p.id, p.name]));
+
+  // Prefers assigned_to_resource_id's exact resource (set by reassignTicket
+  // / tickets_auto_route, 0047/0049), then a profile_id match, then the
+  // login name as a last resort — same precedence order as the email
+  // resolution, so the name shown always matches where mail actually went.
+  function resolveAssigneeName(t: Ticket): string | null {
+    if (t.assigned_to_resource_id) return nameByResource.get(t.assigned_to_resource_id) ?? null;
+    if (t.assigned_to) return resourceNameByProfile.get(t.assigned_to) ?? nameByProfile.get(t.assigned_to) ?? null;
+    return null;
+  }
 
   return tickets.map((t) => ({
     ...t,
     raised_by_name: t.raised_by ? (nameByProfile.get(t.raised_by) ?? null) : null,
-    assigned_to_name: t.assigned_to ? (nameByProfile.get(t.assigned_to) ?? null) : null,
+    assigned_to_name: resolveAssigneeName(t),
     reported_by_resource_name: t.reported_by_resource_id ? (nameByResource.get(t.reported_by_resource_id) ?? null) : null,
     assigned_to_resource_name: t.assigned_to_resource_id ? (nameByResource.get(t.assigned_to_resource_id) ?? null) : null,
     project_name: nameByProject.get(t.project_id) ?? "—",
