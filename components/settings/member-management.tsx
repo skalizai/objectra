@@ -51,9 +51,10 @@ export function MemberManagement({ members }: { members: MemberWithMemberships[]
       <h3 className="font-display text-sm font-semibold">Member management</h3>
       <p className="mt-1 text-xs text-text-3">
         Edit a member&apos;s name, login email, or their role on each project — Project Manager and
-        Technical Lead can manage the project; PMO is CC&apos;d on status emails but can&apos;t edit; Member
-        is invite-only and can only update status/comments on their own assigned objects. Changing the email
-        here changes what they sign in with.
+        Technical Lead can manage the project; PMO can&apos;t edit but can be added to a project&apos;s
+        object status emails from that project&apos;s Settings; Member is invite-only and can only update
+        status/comments on their own assigned objects. Changing the email here changes what they sign in
+        with.
       </p>
 
       <ul className="mt-4 divide-y divide-border">
