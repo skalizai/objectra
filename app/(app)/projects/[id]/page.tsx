@@ -1,8 +1,14 @@
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/auth/get-viewer";
 import { getProjectById } from "@/lib/data/projects";
 import { listObjectsForProject } from "@/lib/data/objects";
+import { getDashboardData } from "@/lib/data/dashboard";
+import { KpiRow } from "@/components/dashboard/kpi-row";
+import { StatusDonut } from "@/components/dashboard/status-donut";
+import { ModuleBar } from "@/components/dashboard/module-bar";
+import { DeadlineMonitor } from "@/components/dashboard/deadline-monitor";
 
 const STATUS_LABEL: Record<string, string> = {
   active: "Active",
@@ -13,8 +19,10 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default async function ProjectOverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [project, objects] = await Promise.all([getProjectById(id), listObjectsForProject(id)]);
+  const [project, objects, viewer] = await Promise.all([getProjectById(id), listObjectsForProject(id), getViewer()]);
   if (!project) notFound();
+
+  const dashboard = viewer ? await getDashboardData(viewer.profile.org_id, id) : null;
 
   let pmName = "Unassigned";
   if (project.pm_id) {
@@ -65,6 +73,18 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
           for the full list.
         </p>
       </div>
+
+      {dashboard && objects.length > 0 && (
+        <div className="space-y-4 border-t border-border pt-6">
+          <h2 className="font-display text-lg font-semibold">Object summary</h2>
+          <KpiRow kpis={dashboard.kpis} />
+          <div className="grid gap-5 lg:grid-cols-2">
+            <StatusDonut data={dashboard.statusDistribution} />
+            <ModuleBar data={dashboard.byModule} />
+          </div>
+          <DeadlineMonitor data={dashboard.deadlineMonitor} />
+        </div>
+      )}
     </div>
   );
 }
