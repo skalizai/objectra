@@ -42,33 +42,62 @@ async function logEmailFailure(admin: Admin, type: EmailType, toEmail: string, s
   });
 }
 
-/** Resolves a profile's email/name plus whether they've opted out of
- * notifications via their resources roster entry — a profile with no
- * resources row (typical for a super_user raiser, unlike an internal
- * consultant) is treated as opted in by default. */
-async function getContact(admin: Admin, profileId: string | null) {
+/** Resolves a notification contact for a profile — prefers the matching
+ * resources roster row's own email/name over the login email, since the
+ * roster email is freely editable any time from Resources, while the
+ * login email locks in at invite time and drifts once someone edits the
+ * roster entry afterward (see 0047 / the Member management email fix).
+ * Falls back to the login email when there's no resource row at all (a
+ * super_user raiser typically has none, unlike an internal consultant).
+ *
+ * `preferredResourceId`, when given, resolves that exact resource row
+ * instead of matching by profile_id — needed for the ticket's actual
+ * assignee, since this org's roster allows duplicate emails across
+ * resources (0017), which can otherwise make a plain profile_id match
+ * ambiguous after a reassignment. */
+async function getContact(admin: Admin, profileId: string | null, preferredResourceId?: string | null) {
   if (!profileId) return null;
-  const [{ data: profile }, { data: resource }] = await Promise.all([
+
+  const resourceQuery = preferredResourceId
+    ? admin.from("resources").select("email, full_name, email_notifications_enabled").eq("id", preferredResourceId)
+    : admin.from("resources").select("email, full_name, email_notifications_enabled").eq("profile_id", profileId);
+
+  const [{ data: profile }, { data: resourceRows }] = await Promise.all([
     admin.from("profiles").select("email, full_name").eq("id", profileId).maybeSingle(),
-    admin.from("resources").select("email_notifications_enabled").eq("profile_id", profileId).maybeSingle(),
+    resourceQuery.limit(1),
   ]);
-  if (!profile?.email) return null;
+
+  const resource = resourceRows?.[0] ?? null;
+  const email = resource?.email || profile?.email;
+  if (!email) return null;
+  const fullName = resource?.full_name || profile?.full_name || "there";
   const optedOut = resource ? resource.email_notifications_enabled === false : false;
-  return { email: profile.email as string, fullName: (profile.full_name as string) || "there", optedOut };
+  return { email, fullName, optedOut };
 }
 
+/** Same resource-preferred resolution as getContact, applied to the
+ * project's PM/technical_lead(s) so their CC address is whatever's
+ * configured on their roster entry too. */
 async function getProjectEditorEmails(admin: Admin, projectId: string): Promise<string[]> {
   const { data: members } = await admin
     .from("project_members")
-    .select("profile:profiles(email)")
+    .select("profile_id, profile:profiles(email)")
     .eq("project_id", projectId)
     .eq("is_active", true)
     .in("role", ["project_manager", "technical_lead"]);
 
+  const rows = (members ?? []) as unknown as { profile_id: string; profile: { email: string } | null }[];
+  const profileIds = rows.map((r) => r.profile_id).filter(Boolean);
+
+  const { data: resourceRows } = profileIds.length
+    ? await admin.from("resources").select("profile_id, email").in("profile_id", profileIds)
+    : { data: [] as { profile_id: string; email: string }[] };
+  const resourceEmailByProfile = new Map((resourceRows ?? []).map((r) => [r.profile_id, r.email]));
+
   return Array.from(
     new Set(
-      ((members ?? []) as unknown as { profile: { email: string } | null }[])
-        .map((m) => m.profile?.email)
+      rows
+        .map((r) => resourceEmailByProfile.get(r.profile_id) || r.profile?.email)
         .filter((e): e is string => !!e),
     ),
   );
@@ -107,7 +136,7 @@ export async function notifyTicketCreated(ticketId: string) {
 
   const raiser = await getContact(admin, ticket.raised_by);
   if (raiser && !raiser.optedOut) {
-    const assignee = ticket.assigned_to ? await getContact(admin, ticket.assigned_to) : null;
+    const assignee = ticket.assigned_to ? await getContact(admin, ticket.assigned_to, ticket.assigned_to_resource_id) : null;
     const subject = `Ticket received — ${ticket.ticket_no ?? ticket.subject} (${project.name})`;
     try {
       const result = await getResendClient().emails.send({
@@ -148,7 +177,7 @@ export async function notifyTicketAssignment(ticketId: string) {
   const { ticket, project } = ctx;
   if (!ticket.assigned_to) return;
 
-  const assignee = await getContact(admin, ticket.assigned_to);
+  const assignee = await getContact(admin, ticket.assigned_to, ticket.assigned_to_resource_id);
   if (!assignee || assignee.optedOut) return;
 
   const raiser = await getContact(admin, ticket.raised_by);
@@ -248,7 +277,7 @@ export async function notifySlaAlert(ticketId: string, isWarning: boolean) {
   if (!project) return;
 
   const recipients = new Set<string>();
-  const assignee = await getContact(admin, ticket.assigned_to);
+  const assignee = await getContact(admin, ticket.assigned_to, ticket.assigned_to_resource_id);
   if (assignee && !assignee.optedOut) recipients.add(assignee.email);
   for (const email of await getProjectEditorEmails(admin, project.id)) recipients.add(email);
 
