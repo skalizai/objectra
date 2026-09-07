@@ -6,6 +6,7 @@ export interface TicketAssignedEmailProps {
   recipientName: string;
   ticketNo: string;
   subject: string;
+  description: string | null;
   module: string;
   criticality: string;
   projectName: string;
@@ -39,6 +40,7 @@ export default function TicketAssignedEmail({
   recipientName = "there",
   ticketNo = "ACME-INC-00001",
   subject = "Unable to post goods receipt",
+  description = null,
   module = "MM",
   criticality = "P2_high",
   projectName = "Acme S/4HANA Rollout",
@@ -87,6 +89,23 @@ export default function TicketAssignedEmail({
           </td>
         </tr>
       </table>
+
+      {description && (
+        <>
+          <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
+            <tr><td height={22} style={{ fontSize: 1, lineHeight: "1px" }}>&nbsp;</td></tr>
+          </table>
+          <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" as const, color: V2.muted, lineHeight: "16px", paddingBottom: 8 }}>
+            Description
+          </div>
+          <div
+            className="darktext"
+            style={{ fontFamily: FONT, fontSize: 14, color: V2.body, lineHeight: "22px", whiteSpace: "pre-wrap" as const }}
+          >
+            {description}
+          </div>
+        </>
+      )}
 
       <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
         <tr><td height={30} style={{ fontSize: 1, lineHeight: "1px" }}>&nbsp;</td></tr>

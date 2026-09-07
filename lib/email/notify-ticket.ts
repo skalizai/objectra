@@ -197,6 +197,7 @@ export async function notifyTicketAssignment(ticketId: string) {
         recipientName: assignee.fullName,
         ticketNo: ticket.ticket_no ?? "",
         subject: ticket.subject,
+        description: ticket.description,
         module: ticket.module,
         criticality: ticket.criticality,
         projectName: project.name,
