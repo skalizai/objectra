@@ -30,7 +30,7 @@ export function MemberManagement({ members }: { members: MemberWithMemberships[]
   }
   const [emailErrors, setEmailErrors] = useState<Record<string, string>>({});
 
-  async function saveEmail(memberId: string, currentEmail: string, nextEmail: string) {
+  async function saveEmail(memberId: string, currentEmail: string, nextEmail: string, input: HTMLInputElement) {
     if (nextEmail === currentEmail) return;
     setEmailErrors((prev) => {
       const next = { ...prev };
@@ -40,6 +40,7 @@ export function MemberManagement({ members }: { members: MemberWithMemberships[]
     const result = await updateMemberEmail(memberId, nextEmail);
     if (result.error) {
       setEmailErrors((prev) => ({ ...prev, [memberId]: result.error! }));
+      input.value = currentEmail; // the rejected value would otherwise keep showing — this input is uncontrolled
       return;
     }
     setRows((prev) => prev.map((r) => (r.id === memberId ? { ...r, email: nextEmail } : r)));
@@ -74,7 +75,7 @@ export function MemberManagement({ members }: { members: MemberWithMemberships[]
                   type="email"
                   defaultValue={m.email}
                   className={`${inputClass} mt-0.5 w-full max-w-xs text-xs text-text-3`}
-                  onBlur={(e) => void saveEmail(m.id, m.email, e.target.value.trim())}
+                  onBlur={(e) => void saveEmail(m.id, m.email, e.target.value.trim(), e.target)}
                 />
                 {emailErrors[m.id] && (
                   <div className="mt-0.5 flex items-center gap-1 text-[11px]" style={{ color: "var(--status-overdue)" }}>

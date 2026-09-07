@@ -131,14 +131,26 @@ export async function updateMemberEmail(profileId: string, email: string) {
   if (!trimmed || !trimmed.includes("@")) return { error: "Enter a valid email address." };
 
   const admin = createAdminClient();
-  const { error: authError } = await admin.auth.admin.updateUserById(profileId, {
-    email: trimmed,
-    email_confirm: true,
-  });
-  if (authError) return { error: authError.message };
+
+  try {
+    const { error: authError } = await admin.auth.admin.updateUserById(profileId, {
+      email: trimmed,
+      email_confirm: true,
+    });
+    if (authError) {
+      // Supabase's admin API doesn't always surface a clean message for
+      // this — a duplicate email in particular can come back as an
+      // effectively empty error object, which would otherwise render as a
+      // bare "{}" in the UI.
+      const message = authError.message?.trim();
+      return { error: message && message !== "{}" ? message : "That email is already in use by another account." };
+    }
+  } catch (err) {
+    return { error: err instanceof Error && err.message ? err.message : "Couldn't update the login email." };
+  }
 
   const { error } = await admin.from("profiles").update({ email: trimmed }).eq("id", profileId);
-  if (error) return { error: error.message };
+  if (error) return { error: error.message || "Couldn't save the email." };
 
   revalidatePath("/settings");
   return { error: null };
