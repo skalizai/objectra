@@ -61,21 +61,12 @@ export default function TicketStatusEmail({
       </div>
 
       <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
-        <tr><td height={30} style={{ fontSize: 1, lineHeight: "1px" }}>&nbsp;</td></tr>
+        <tr><td height={22} style={{ fontSize: 1, lineHeight: "1px" }}>&nbsp;</td></tr>
       </table>
 
-      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
-        <tr>
-          <td align="center" style={{ backgroundColor: V2.goldDark, borderRadius: 10 }}>
-            <a
-              href={`${appUrl}/my-tickets`}
-              style={{ display: "block", padding: "14px 24px", fontFamily: FONT, fontSize: 15, fontWeight: 700, color: V2.headerBg, textDecoration: "none", lineHeight: "20px" }}
-            >
-              View ticket in Objectra Labs &nbsp;&nbsp;→
-            </a>
-          </td>
-        </tr>
-      </table>
+      <div style={{ fontFamily: FONT, fontSize: 13, color: V2.muted, lineHeight: "20px" }}>
+        You can view this ticket in the Objectra app.
+      </div>
     </EmailShellV2>
   );
 }

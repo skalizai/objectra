@@ -264,28 +264,9 @@ export default function ObjectStatusEmail({
         </tr>
       </table>
 
-      {/* Bulletproof button */}
-      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
-        <tr>
-          <td align="center" style={{ backgroundColor: V2.goldDark, borderRadius: 10 }}>
-            <a
-              href={`${appUrl}/my-work`}
-              style={{
-                display: "block",
-                padding: "14px 24px",
-                fontFamily: FONT,
-                fontSize: 15,
-                fontWeight: 700,
-                color: V2.headerBg,
-                textDecoration: "none",
-                lineHeight: "20px",
-              }}
-            >
-              View object in Objectra Labs &nbsp;&nbsp;→
-            </a>
-          </td>
-        </tr>
-      </table>
+      <div style={{ fontFamily: FONT, fontSize: 13, color: V2.muted, lineHeight: "20px" }}>
+        You can view this object in the Objectra app.
+      </div>
 
       <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, textAlign: "center" as const, paddingTop: 14, lineHeight: "18px" }}>
         Questions about this change? Reach out to your project lead.
