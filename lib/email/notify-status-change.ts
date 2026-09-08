@@ -238,11 +238,11 @@ export async function notifyObjectAssigneeChange(objectId: string, projectId: st
   // throughout this app, so both paths that reach them (a technical
   // consultant landing on their object, or their own assignment before one
   // has) use the same reassuring, professional framing: a named technical
-  // consultant is on it (or will be), that person will reach out directly
-  // for any clarifications, and status updates will follow automatically.
+  // consultant is on it (or will be), the functional consultant can reach
+  // out to them directly, and status updates will follow automatically.
   const technicalAssignedMessage = ctx.developer
-    ? `A technical consultant, ${ctx.developer.full_name}, has been assigned to your requested object. Should you have any clarifications, they will be in touch with you directly, and you will be notified of any status updates on this object.`
-    : "This object has been registered under your ownership as the functional consultant. Once a technical consultant is assigned, they will be in touch with you directly for any clarifications, and you will be notified of any status updates on this object.";
+    ? `This object has been assigned to ${ctx.developer.full_name} as the technical consultant. Should you have any clarifications, please feel free to reach out to them directly, and you will be notified of any status updates on this object.`
+    : "This object has been registered under your ownership as the functional consultant. Once a technical consultant is assigned, you will be able to reach out to them directly for any clarifications, and you will be notified of any status updates on this object.";
 
   const developerAssignedMessage = ctx.functional
     ? `An object has been assigned to you as the technical consultant. Should you have any clarifications regarding requirements, please reach out to the functional consultant, ${ctx.functional.full_name}.`
