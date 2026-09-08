@@ -7,6 +7,9 @@ import { IconCheck, IconSearch, IconX } from "@tabler/icons-react";
 import { WricefGlyph } from "@/components/ui/wricef-glyph";
 import { StatusPill } from "@/components/ui/status-pill";
 import { ObjectDetailDrawer } from "@/components/objects/object-detail-drawer";
+import { ImportXlsxButton } from "@/components/objects/import-xlsx-button";
+import { ExportXlsxButton } from "@/components/objects/export-xlsx-button";
+import { AddObjectButton } from "@/components/objects/add-object-button";
 import { useModules, useStatuses } from "@/components/providers/picklist-provider";
 import { OBJECT_TYPE_META } from "@/lib/object-meta";
 import type { ObjectWithAssignees } from "@/lib/data/objects";
@@ -20,11 +23,13 @@ function consultantName(obj: ObjectWithAssignees, role: "functional" | "develope
 
 export function ObjectsRegister({
   projectId,
+  projectName,
   objects,
   canEdit,
   resources,
 }: {
   projectId: string;
+  projectName: string;
   objects: ObjectWithAssignees[];
   canEdit: boolean;
   resources: ResourceOption[];
@@ -73,6 +78,12 @@ export function ObjectsRegister({
 
   return (
     <div>
+      <div className="mb-4 flex justify-end gap-2">
+        {canEdit && <ImportXlsxButton projectId={projectId} />}
+        <ExportXlsxButton objects={filtered} projectName={projectName} />
+        {canEdit && <AddObjectButton projectId={projectId} resources={resources} />}
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 pb-4">
         <div className="relative flex-1 min-w-[200px]">
           <IconSearch size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-3" />
