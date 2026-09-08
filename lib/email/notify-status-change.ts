@@ -115,16 +115,44 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
 
 type Ctx = NonNullable<Awaited<ReturnType<typeof getObjectNotificationContext>>>;
 
+/** Resolves the project's active Technical Lead(s) — same resource-
+ * preferred email resolution as notify-ticket.ts's getProjectEditorEmails
+ * (a roster entry's own email is freely editable, unlike the login email,
+ * which locks in at invite time). The project's PM is resolved separately
+ * via projects.pm_id (getObjectNotificationContext), so this is scoped to
+ * technical_lead only. */
+async function getTechnicalLeadEmails(admin: Admin, projectId: string): Promise<string[]> {
+  const { data: members } = await admin
+    .from("project_members")
+    .select("profile_id, profile:profiles(email)")
+    .eq("project_id", projectId)
+    .eq("is_active", true)
+    .eq("role", "technical_lead");
+
+  const rows = (members ?? []) as unknown as { profile_id: string; profile: { email: string } | null }[];
+  const profileIds = rows.map((r) => r.profile_id).filter(Boolean);
+
+  const { data: resourceRows } = profileIds.length
+    ? await admin.from("resources").select("profile_id, email").in("profile_id", profileIds)
+    : { data: [] as { profile_id: string; email: string }[] };
+  const resourceEmailByProfile = new Map((resourceRows ?? []).map((r) => [r.profile_id, r.email]));
+
+  return Array.from(
+    new Set(rows.map((r) => resourceEmailByProfile.get(r.profile_id) || r.profile?.email).filter((e): e is string => !!e)),
+  );
+}
+
 /** Sends one object-status email to one recipient, CC'ing the shared
- * ccSet (minus the recipient themselves). Never throws — logs failures
- * instead, same as every other notify-* helper in this app. */
+ * ccSet plus any extraCc (minus the recipient themselves). Never throws —
+ * logs failures instead, same as every other notify-* helper in this app. */
 async function sendOne(
   admin: Admin,
   ctx: Ctx,
   to: Contact,
-  opts: { heading: string; message: string; previousStatus: string | null },
+  opts: { heading: string; message: string; previousStatus: string | null; extraCc?: string[] },
 ) {
   const cc = new Set(ctx.ccSet);
+  for (const email of opts.extraCc ?? []) cc.add(email);
   cc.delete(to.email);
 
   const subject = `${opts.heading} — ${ctx.objectRow.wricef_id ?? ctx.objectRow.title} (${ctx.project.name})`;
@@ -190,16 +218,21 @@ export async function notifyObjectStatusChange(
 /** Fires when the functional or technical consultant on an object changes
  * (setObjectAssignee) — deliberately two different emails, not one shared
  * one: the newly assigned technical consultant gets an actionable "start
- * working" email, while the functional consultant (if any) gets a lighter
+ * working" email naming the functional consultant to contact for
+ * clarifications, while the functional consultant (if any) gets a lighter
  * FYI naming who's now on development. Assigning the functional consultant
  * only notifies them directly — the technical side doesn't need an FYI for
- * that. See getObjectNotificationContext for the gating/CC rules. */
+ * that. Both emails additionally CC the project's Technical Lead(s)
+ * (the PM is already CC'd via getObjectNotificationContext's ccSet). See
+ * getObjectNotificationContext for the gating/base-CC rules. */
 export async function notifyObjectAssigneeChange(objectId: string, projectId: string, role: AssignedRole) {
   if (!process.env.RESEND_API_KEY) return;
   const admin = createAdminClient();
 
   const ctx = await getObjectNotificationContext(admin, objectId, projectId);
   if (!ctx) return;
+
+  const technicalLeadEmails = await getTechnicalLeadEmails(admin, projectId);
 
   // The functional consultant is treated as the object's business owner
   // throughout this app, so both paths that reach them (a technical
@@ -211,12 +244,17 @@ export async function notifyObjectAssigneeChange(objectId: string, projectId: st
     ? `A technical consultant, ${ctx.developer.full_name}, has been assigned to your requested object. Should you have any clarifications, they will be in touch with you directly, and you will be notified of any status updates on this object.`
     : "This object has been registered under your ownership as the functional consultant. Once a technical consultant is assigned, they will be in touch with you directly for any clarifications, and you will be notified of any status updates on this object.";
 
+  const developerAssignedMessage = ctx.functional
+    ? `An object has been assigned to you as the technical consultant. Should you have any clarifications regarding requirements, please reach out to the functional consultant, ${ctx.functional.full_name}.`
+    : "An object has been assigned to you as the technical consultant. Should you have any clarifications regarding requirements, please reach out to the project's functional consultant.";
+
   if (role === "developer") {
     if (ctx.developer && ctx.developer.email_notifications_enabled !== false) {
       await sendOne(admin, ctx, ctx.developer, {
         heading: "You've been assigned",
-        message: "This object has been assigned to you as the technical consultant — you can start working on it.",
+        message: developerAssignedMessage,
         previousStatus: null,
+        extraCc: technicalLeadEmails,
       });
     }
     if (
@@ -228,6 +266,7 @@ export async function notifyObjectAssigneeChange(objectId: string, projectId: st
         heading: "Technical consultant assigned",
         message: technicalAssignedMessage,
         previousStatus: null,
+        extraCc: technicalLeadEmails,
       });
     }
   } else {
@@ -236,6 +275,7 @@ export async function notifyObjectAssigneeChange(objectId: string, projectId: st
         heading: ctx.developer ? "Technical consultant assigned" : "You've been assigned",
         message: technicalAssignedMessage,
         previousStatus: null,
+        extraCc: technicalLeadEmails,
       });
     }
   }
