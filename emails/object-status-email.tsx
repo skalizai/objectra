@@ -60,6 +60,7 @@ function DetailRow({ label, value, first = false }: { label: string; value: Reac
 function ProgressTracker({ statuses, current }: { statuses: string[]; current: string }) {
   if (statuses.length === 0) return null;
   const currentIndex = Math.max(statuses.indexOf(current), 0);
+  const upcoming = statuses.slice(currentIndex + 1);
 
   return (
     <>
@@ -100,18 +101,23 @@ function ProgressTracker({ statuses, current }: { statuses: string[]; current: s
             </Fragment>
           ))}
         </tr>
+      </table>
+      <table role="presentation" cellPadding={0} cellSpacing={0} border={0} width="100%">
         <tr>
-          <td
-            style={{ fontFamily: FONT, fontSize: 11, color: V2.muted, paddingTop: 8, lineHeight: "15px" }}
-          >
-            {statuses[0]}
+          <td style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, paddingTop: 10, lineHeight: "18px" }}>
+            Currently in{" "}
+            <span className="darktext" style={{ fontWeight: 700, color: V2.heading }}>
+              {statuses[currentIndex]}
+            </span>
           </td>
-          {statuses.length > 1 && (
-            <td align="right" style={{ fontFamily: FONT, fontSize: 11, color: V2.mutedFaint, paddingTop: 8, lineHeight: "15px" }}>
-              {statuses[statuses.length - 1]}
-            </td>
-          )}
         </tr>
+        {upcoming.length > 0 && (
+          <tr>
+            <td style={{ fontFamily: FONT, fontSize: 12, color: V2.mutedFaint, paddingTop: 4, lineHeight: "18px" }}>
+              Next up: {upcoming.join(" → ")}
+            </td>
+          </tr>
+        )}
       </table>
     </>
   );
