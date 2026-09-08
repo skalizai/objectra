@@ -6,44 +6,60 @@ import type { AssignedRole, ObjectRow } from "@/lib/types/database";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
+type Admin = ReturnType<typeof createAdminClient>;
+
+type Contact = { full_name: string; email: string; email_notifications_enabled: boolean };
+
 type AssigneeRow = {
   assigned_role: AssignedRole;
-  resource: { full_name: string; email: string; email_notifications_enabled: boolean } | null;
+  resource: Contact | null;
 };
+
+async function logEmail(
+  admin: Admin,
+  toEmail: string,
+  subject: string,
+  projectId: string,
+  sendResult: { data?: { id?: string } | null; error?: { message: string } | null },
+) {
+  await admin.from("email_log").insert({
+    type: "status_change",
+    to_email: toEmail,
+    subject,
+    project_id: projectId,
+    status: sendResult.error ? "failed" : "sent",
+    provider_id: sendResult.data?.id ?? null,
+    error: sendResult.error?.message ?? null,
+  });
+}
+
+async function logEmailFailure(admin: Admin, toEmail: string, subject: string, projectId: string, err: unknown) {
+  await admin.from("email_log").insert({
+    type: "status_change",
+    to_email: toEmail,
+    subject,
+    project_id: projectId,
+    status: "failed",
+    error: err instanceof Error ? err.message : "Unknown error",
+  });
+}
 
 /** Shared by both notify entry points below: gated entirely by
  * admin-configured data rather than a hard-coded list of statuses —
  * Settings → Object statuses has an "Email" checkbox per status
  * (picklists.notify_email); if the object's current status doesn't have it
- * checked, this is a silent no-op.
+ * checked, this returns null and callers no-op silently.
  *
- * When it is checked, both the functional and technical consultants
- * currently assigned to the object are notified, except anyone whose own
- * Add/Edit Resource "Email" checkbox is unchecked
- * (resources.email_notifications_enabled) — a per-recipient opt-out. CC'd:
- * the project's own PM (projects.pm_id) always, plus whoever's configured
- * in Settings → this project's "Object status emails" list (0048) — both
- * resolved straight from the resource roster, no login required. This
- * replaces the old hard-coded "every active project_members row with role
- * project_manager/technical_lead/pmo" CC, which wasn't configurable and
- * required an accepted invite.
- * Also silently no-ops if nobody eligible is assigned, or if Resend isn't
- * configured. A failed send is logged, never thrown — it should never
- * block the caller's own update. */
-async function sendObjectNotification(
-  objectId: string,
-  projectId: string,
-  opts: { heading: string; message: string; previousStatus: string | null },
-) {
-  if (!process.env.RESEND_API_KEY) return;
-
-  const admin = createAdminClient();
-
+ * CC'd on everything sent using this context: the project's own PM
+ * (projects.pm_id) always, plus whoever's configured in Settings → this
+ * project's "Object status emails" list (0048) — both resolved straight
+ * from the resource roster, no login required. */
+async function getObjectNotificationContext(admin: Admin, objectId: string, projectId: string) {
   const [{ data: object }, { data: project }] = await Promise.all([
     admin.from("objects").select("*").eq("id", objectId).maybeSingle(),
     admin.from("projects").select("id, name, org_id, pm_id").eq("id", projectId).maybeSingle(),
   ]);
-  if (!object || !project) return;
+  if (!object || !project) return null;
   const objectRow = object as ObjectRow;
   const status = objectRow.status;
 
@@ -65,7 +81,7 @@ async function sendObjectNotification(
       .order("sort_order", { ascending: true }),
   ]);
 
-  if (!statusPicklist?.notify_email) return;
+  if (!statusPicklist?.notify_email) return null;
 
   const statusColor = statusPicklist.color ?? FALLBACK_STATUS_HEX;
   const pipelineStatuses = ((orgStatuses ?? []) as { value: string }[]).map((s) => s.value);
@@ -88,96 +104,129 @@ async function sendObjectNotification(
   const developer = rows.find((a) => a.assigned_role === "developer")?.resource ?? null;
   const functional = rows.find((a) => a.assigned_role === "functional")?.resource ?? null;
 
-  const eligible = [developer, functional].filter(
-    (r): r is NonNullable<typeof r> => !!r && r.email_notifications_enabled !== false,
-  );
-  const toEmails = Array.from(new Set(eligible.map((r) => r.email)));
-  if (toEmails.length === 0) return; // nobody assigned (or opted out) to notify
-
   const ccSet = new Set<string>();
   if (pmResource?.email && pmResource.email_notifications_enabled !== false) ccSet.add(pmResource.email);
-  for (const r of (extraRecipients ?? []) as unknown as {
-    resource: { email: string; email_notifications_enabled: boolean } | null;
-  }[]) {
+  for (const r of (extraRecipients ?? []) as unknown as { resource: Contact | null }[]) {
     if (r.resource?.email && r.resource.email_notifications_enabled !== false) ccSet.add(r.resource.email);
   }
-  for (const email of toEmails) ccSet.delete(email); // never cc someone already in "to"
 
-  const recipientName = eligible.length === 1 ? eligible[0].full_name : "team";
-  const subject = `${opts.heading} — ${objectRow.wricef_id ?? objectRow.title} (${project.name})`;
+  return { objectRow, project, status, statusColor, pipelineStatuses, developer, functional, ccSet };
+}
 
+type Ctx = NonNullable<Awaited<ReturnType<typeof getObjectNotificationContext>>>;
+
+/** Sends one object-status email to one recipient, CC'ing the shared
+ * ccSet (minus the recipient themselves). Never throws — logs failures
+ * instead, same as every other notify-* helper in this app. */
+async function sendOne(
+  admin: Admin,
+  ctx: Ctx,
+  to: Contact,
+  opts: { heading: string; message: string; previousStatus: string | null },
+) {
+  const cc = new Set(ctx.ccSet);
+  cc.delete(to.email);
+
+  const subject = `${opts.heading} — ${ctx.objectRow.wricef_id ?? ctx.objectRow.title} (${ctx.project.name})`;
   try {
-    const sendResult = await getResendClient().emails.send({
+    const result = await getResendClient().emails.send({
       from: EMAIL_FROM,
-      to: toEmails,
-      cc: ccSet.size ? Array.from(ccSet) : undefined,
+      to: [to.email],
+      cc: cc.size ? Array.from(cc) : undefined,
       subject,
       react: ObjectStatusEmail({
-        recipientName,
+        recipientName: to.full_name,
         heading: opts.heading,
         message: opts.message,
-        objectTitle: objectRow.title,
-        wricefId: objectRow.wricef_id,
-        projectName: project.name,
-        status,
+        objectTitle: ctx.objectRow.title,
+        wricefId: ctx.objectRow.wricef_id,
+        projectName: ctx.project.name,
+        status: ctx.status,
         previousStatus: opts.previousStatus,
-        statusColor,
-        pipelineStatuses,
-        dueDate: objectRow.due_date,
-        technicalName: developer?.full_name ?? null,
-        functionalName: functional?.full_name ?? null,
+        statusColor: ctx.statusColor,
+        pipelineStatuses: ctx.pipelineStatuses,
+        dueDate: ctx.objectRow.due_date,
+        technicalName: ctx.developer?.full_name ?? null,
+        functionalName: ctx.functional?.full_name ?? null,
         appUrl: APP_URL,
       }),
     });
-
-    await admin.from("email_log").insert({
-      type: "status_change",
-      to_email: toEmails.join(", "),
-      subject,
-      project_id: projectId,
-      status: sendResult.error ? "failed" : "sent",
-      provider_id: sendResult.data?.id ?? null,
-      error: sendResult.error?.message ?? null,
-    });
+    await logEmail(admin, to.email, subject, ctx.project.id, result);
   } catch (err) {
-    await admin.from("email_log").insert({
-      type: "status_change",
-      to_email: toEmails.join(", "),
-      subject,
-      project_id: projectId,
-      status: "failed",
-      error: err instanceof Error ? err.message : "Unknown error",
-    });
+    await logEmailFailure(admin, to.email, subject, ctx.project.id, err);
   }
 }
 
 /** Fires when an object's status changes — called from
- * updateObjectByManager/memberUpdateObject. See sendObjectNotification for
- * the gating/recipient rules. */
+ * updateObjectByManager/memberUpdateObject. Both assigned consultants get
+ * the same status-update email, since a status move is equally relevant to
+ * both. See getObjectNotificationContext for the gating/CC rules. */
 export async function notifyObjectStatusChange(
   objectId: string,
   projectId: string,
   newStatus: string,
   previousStatus: string | null,
 ) {
-  await sendObjectNotification(objectId, projectId, {
-    heading: `Now in ${newStatus}`,
-    message: `This object has moved to ${newStatus}.`,
-    previousStatus,
-  });
+  if (!process.env.RESEND_API_KEY) return;
+  const admin = createAdminClient();
+
+  const ctx = await getObjectNotificationContext(admin, objectId, projectId);
+  if (!ctx) return;
+
+  const heading = `Now in ${newStatus}`;
+  const message = `This object has moved to ${newStatus}.`;
+
+  const recipients = [ctx.developer, ctx.functional].filter(
+    (r): r is Contact => !!r && r.email_notifications_enabled !== false,
+  );
+  const seen = new Set<string>();
+  for (const r of recipients) {
+    if (seen.has(r.email)) continue;
+    seen.add(r.email);
+    await sendOne(admin, ctx, r, { heading, message, previousStatus });
+  }
 }
 
 /** Fires when the functional or technical consultant on an object changes
- * (setObjectAssignee) — someone new is now on the hook for an object that's
- * sitting in a status the org has flagged for email (same notify_email
- * check as a status change), so they should hear about it even though the
- * status itself didn't move. See sendObjectNotification for the
- * gating/recipient rules. */
+ * (setObjectAssignee) — deliberately two different emails, not one shared
+ * one: the newly assigned technical consultant gets an actionable "start
+ * working" email, while the functional consultant (if any) gets a lighter
+ * FYI naming who's now on development. Assigning the functional consultant
+ * only notifies them directly — the technical side doesn't need an FYI for
+ * that. See getObjectNotificationContext for the gating/CC rules. */
 export async function notifyObjectAssigneeChange(objectId: string, projectId: string, role: AssignedRole) {
-  const roleLabel = role === "developer" ? "Technical" : "Functional";
-  await sendObjectNotification(objectId, projectId, {
-    heading: `${roleLabel} consultant updated`,
-    message: `The ${roleLabel.toLowerCase()} consultant on this object has changed.`,
-    previousStatus: null,
-  });
+  if (!process.env.RESEND_API_KEY) return;
+  const admin = createAdminClient();
+
+  const ctx = await getObjectNotificationContext(admin, objectId, projectId);
+  if (!ctx) return;
+
+  if (role === "developer") {
+    if (ctx.developer && ctx.developer.email_notifications_enabled !== false) {
+      await sendOne(admin, ctx, ctx.developer, {
+        heading: "You've been assigned",
+        message: "This object has been assigned to you as the technical consultant — you can start working on it.",
+        previousStatus: null,
+      });
+    }
+    if (
+      ctx.functional &&
+      ctx.functional.email_notifications_enabled !== false &&
+      ctx.functional.email !== ctx.developer?.email
+    ) {
+      await sendOne(admin, ctx, ctx.functional, {
+        heading: "Technical consultant assigned",
+        message: `This object has been assigned to ${ctx.developer?.full_name ?? "a technical consultant"} to start development.`,
+        previousStatus: null,
+      });
+    }
+  } else {
+    if (ctx.functional && ctx.functional.email_notifications_enabled !== false) {
+      await sendOne(admin, ctx, ctx.functional, {
+        heading: "You've been assigned",
+        message: "This object has been assigned to you as the functional consultant.",
+        previousStatus: null,
+      });
+    }
+  }
 }
