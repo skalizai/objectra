@@ -59,13 +59,19 @@ function DetailRow({ label, value, first = false }: { label: string; value: Reac
 
 /** "Live" is the end of the normal forward flow — anything configured after
  * it (On Hold, In Pre-Production, etc.) is a parking/exception state, not a
- * next step, so the roadmap line stops there instead of listing it. */
+ * next step, so the roadmap line stops there instead of listing it. A couple
+ * of internal developer sub-stages are also noise on the client-facing
+ * roadmap and are skipped wherever they fall in the sequence. */
+const ROADMAP_SKIP = new Set(["functional testing in development", "dev testing-developer"]);
+
 function ProgressTracker({ statuses, current }: { statuses: string[]; current: string }) {
   if (statuses.length === 0) return null;
   const currentIndex = Math.max(statuses.indexOf(current), 0);
   const liveIndex = statuses.findIndex((s) => s.trim().toLowerCase() === "live");
   const upcomingEnd = liveIndex >= 0 ? liveIndex + 1 : statuses.length;
-  const upcoming = statuses.slice(currentIndex + 1, upcomingEnd);
+  const upcoming = statuses
+    .slice(currentIndex + 1, upcomingEnd)
+    .filter((s) => !ROADMAP_SKIP.has(s.trim().toLowerCase()));
 
   return (
     <>
