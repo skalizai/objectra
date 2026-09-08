@@ -122,8 +122,16 @@ export async function createObject(
   // regardless of which role happens to be inserted first.
   if (technicalResourceId) await setObjectAssignee(inserted.id, projectId, technicalResourceId, "developer", { notify: false });
   if (functionalResourceId) await setObjectAssignee(inserted.id, projectId, functionalResourceId, "functional", { notify: false });
-  if (technicalResourceId) await notifyObjectAssigneeChange(inserted.id, projectId, "developer");
-  if (functionalResourceId) await notifyObjectAssigneeChange(inserted.id, projectId, "functional");
+  // notifyObjectAssigneeChange("developer") already FYIs the functional
+  // consultant when one is on the object, so when both roles are set here,
+  // one call covers both people -- calling it again for "functional" would
+  // double-send to them. Only fall back to the "functional" call on its own
+  // when there's no technical consultant for that call to piggyback on.
+  if (technicalResourceId) {
+    await notifyObjectAssigneeChange(inserted.id, projectId, "developer");
+  } else if (functionalResourceId) {
+    await notifyObjectAssigneeChange(inserted.id, projectId, "functional");
+  }
 
   revalidatePath(`/projects/${projectId}`);
   return { error: null };
