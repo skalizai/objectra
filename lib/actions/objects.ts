@@ -116,8 +116,14 @@ export async function createObject(
 
   const functionalResourceId = String(formData.get("functional_resource_id") ?? "").trim() || null;
   const technicalResourceId = String(formData.get("technical_resource_id") ?? "").trim() || null;
-  if (functionalResourceId) await setObjectAssignee(inserted.id, projectId, functionalResourceId, "functional");
-  if (technicalResourceId) await setObjectAssignee(inserted.id, projectId, technicalResourceId, "developer");
+  // Insert both assignment rows before sending either notification -- when
+  // both consultants are chosen at creation, each one's email should see
+  // the other already on the object, not the not-yet-assigned fallback,
+  // regardless of which role happens to be inserted first.
+  if (technicalResourceId) await setObjectAssignee(inserted.id, projectId, technicalResourceId, "developer", { notify: false });
+  if (functionalResourceId) await setObjectAssignee(inserted.id, projectId, functionalResourceId, "functional", { notify: false });
+  if (technicalResourceId) await notifyObjectAssigneeChange(inserted.id, projectId, "developer");
+  if (functionalResourceId) await notifyObjectAssigneeChange(inserted.id, projectId, "functional");
 
   revalidatePath(`/projects/${projectId}`);
   return { error: null };
@@ -181,6 +187,7 @@ export async function setObjectAssignee(
   projectId: string,
   resourceId: string | null,
   role: AssignedRole,
+  opts: { notify?: boolean } = {},
 ) {
   const supabase = await createClient();
 
@@ -196,7 +203,10 @@ export async function setObjectAssignee(
     // sitting in a status the org has flagged for email (Settings → Object
     // statuses), let them (and the counterpart consultant) know, same as a
     // status-change notification would. No-op if that status isn't flagged.
-    await notifyObjectAssigneeChange(objectId, projectId, role);
+    // Callers that assign both roles in one action (createObject) pass
+    // notify: false here and send both notifications themselves once both
+    // rows exist, so neither email sees the other role as unassigned.
+    if (opts.notify !== false) await notifyObjectAssigneeChange(objectId, projectId, role);
   }
 
   revalidatePath(`/projects/${projectId}`);
