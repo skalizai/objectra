@@ -201,6 +201,16 @@ export async function notifyObjectAssigneeChange(objectId: string, projectId: st
   const ctx = await getObjectNotificationContext(admin, objectId, projectId);
   if (!ctx) return;
 
+  // The functional consultant is treated as the object's business owner
+  // throughout this app, so both paths that reach them (a technical
+  // consultant landing on their object, or their own assignment before one
+  // has) use the same reassuring, professional framing: a named technical
+  // consultant is on it (or will be), that person will reach out directly
+  // for any clarifications, and status updates will follow automatically.
+  const technicalAssignedMessage = ctx.developer
+    ? `A technical consultant, ${ctx.developer.full_name}, has been assigned to your requested object. Should you have any clarifications, they will be in touch with you directly, and you will be notified of any status updates on this object.`
+    : "This object has been registered under your ownership as the functional consultant. Once a technical consultant is assigned, they will be in touch with you directly for any clarifications, and you will be notified of any status updates on this object.";
+
   if (role === "developer") {
     if (ctx.developer && ctx.developer.email_notifications_enabled !== false) {
       await sendOne(admin, ctx, ctx.developer, {
@@ -216,15 +226,15 @@ export async function notifyObjectAssigneeChange(objectId: string, projectId: st
     ) {
       await sendOne(admin, ctx, ctx.functional, {
         heading: "Technical consultant assigned",
-        message: `This object has been assigned to ${ctx.developer?.full_name ?? "a technical consultant"} to start development.`,
+        message: technicalAssignedMessage,
         previousStatus: null,
       });
     }
   } else {
     if (ctx.functional && ctx.functional.email_notifications_enabled !== false) {
       await sendOne(admin, ctx, ctx.functional, {
-        heading: "You've been assigned",
-        message: "This object has been assigned to you as the functional consultant.",
+        heading: ctx.developer ? "Technical consultant assigned" : "You've been assigned",
+        message: technicalAssignedMessage,
         previousStatus: null,
       });
     }
