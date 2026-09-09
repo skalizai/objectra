@@ -87,22 +87,30 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
 
   // Developer and functional are fetched as two independent targeted
   // queries rather than one query filtered client-side -- each assigned
-  // role must resolve on its own so a data quirk on one role's row (or a
-  // dedup mistake) can never silently drop the other consultant's email.
-  const [{ data: developerRow }, { data: functionalRow }, { data: pmResource }, { data: extraRecipients }] =
+  // role must resolve on its own so a data quirk on one role's row can
+  // never silently drop the other consultant's email. Selected with
+  // limit(1) + order by created_at, not maybeSingle(): object_assignments
+  // has no unique constraint on (object_id, assigned_role) -- setObjectAssignee
+  // maintains "one row per role" by delete-then-insert, but any object with
+  // a stray duplicate row (older data, a past race) would make maybeSingle()
+  // error out on "multiple rows returned", and that error was being silently
+  // swallowed here, resolving to null as if nobody were assigned at all.
+  const [{ data: developerRows }, { data: functionalRows }, { data: pmResource }, { data: extraRecipients }] =
     await Promise.all([
       admin
         .from("object_assignments")
         .select("resource:resources(full_name, email, email_notifications_enabled)")
         .eq("object_id", objectId)
         .eq("assigned_role", "developer")
-        .maybeSingle(),
+        .order("created_at", { ascending: false })
+        .limit(1),
       admin
         .from("object_assignments")
         .select("resource:resources(full_name, email, email_notifications_enabled)")
         .eq("object_id", objectId)
         .eq("assigned_role", "functional")
-        .maybeSingle(),
+        .order("created_at", { ascending: false })
+        .limit(1),
       project.pm_id
         ? admin.from("resources").select("email, email_notifications_enabled").eq("id", project.pm_id).maybeSingle()
         : Promise.resolve({ data: null }),
@@ -112,8 +120,8 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
         .eq("project_id", projectId),
     ]);
 
-  const developer = (developerRow as unknown as AssigneeRow | null)?.resource ?? null;
-  const functional = (functionalRow as unknown as AssigneeRow | null)?.resource ?? null;
+  const developer = ((developerRows ?? [])[0] as unknown as AssigneeRow | undefined)?.resource ?? null;
+  const functional = ((functionalRows ?? [])[0] as unknown as AssigneeRow | undefined)?.resource ?? null;
 
   const ccSet = new Set<string>();
   if (pmResource?.email && pmResource.email_notifications_enabled !== false) ccSet.add(pmResource.email);
@@ -212,6 +220,8 @@ export async function notifyObjectStatusChange(
   const ctx = await getObjectNotificationContext(admin, objectId, projectId);
   if (!ctx) return;
 
+  const technicalLeadEmails = await getTechnicalLeadEmails(admin, projectId);
+
   const heading = `Now in ${newStatus}`;
   const message = `This object has moved to ${newStatus}.`;
 
@@ -222,7 +232,7 @@ export async function notifyObjectStatusChange(
   for (const r of recipients) {
     if (seen.has(r.email)) continue;
     seen.add(r.email);
-    await sendOne(admin, ctx, r, { heading, message, previousStatus });
+    await sendOne(admin, ctx, r, { heading, message, previousStatus, extraCc: technicalLeadEmails });
   }
 }
 
