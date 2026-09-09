@@ -9,9 +9,10 @@ const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 type Admin = ReturnType<typeof createAdminClient>;
 
 type Contact = { full_name: string; email: string; email_notifications_enabled: boolean };
+type AssigneeContact = Contact & { id: string };
 
 type AssigneeRow = {
-  resource: Contact | null;
+  resource: AssigneeContact | null;
 };
 
 async function logEmail(
@@ -99,14 +100,14 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
     await Promise.all([
       admin
         .from("object_assignments")
-        .select("resource:resources(full_name, email, email_notifications_enabled)")
+        .select("resource:resources(id, full_name, email, email_notifications_enabled)")
         .eq("object_id", objectId)
         .eq("assigned_role", "developer")
         .order("created_at", { ascending: false })
         .limit(1),
       admin
         .from("object_assignments")
-        .select("resource:resources(full_name, email, email_notifications_enabled)")
+        .select("resource:resources(id, full_name, email, email_notifications_enabled)")
         .eq("object_id", objectId)
         .eq("assigned_role", "functional")
         .order("created_at", { ascending: false })
@@ -225,13 +226,16 @@ export async function notifyObjectStatusChange(
   const heading = `Now in ${newStatus}`;
   const message = `This object has moved to ${newStatus}.`;
 
+  // Two different roster entries can legitimately share one email address
+  // (e.g. a test/shared inbox) -- that must not suppress either person's own
+  // copy. Only skip the functional consultant's send when it's literally the
+  // same resource row as the developer (one person actually holding both
+  // roles), never merely a matching email string.
+  const sameResource = !!ctx.developer && !!ctx.functional && ctx.developer.id === ctx.functional.id;
   const recipients = [ctx.developer, ctx.functional].filter(
-    (r): r is Contact => !!r && r.email_notifications_enabled !== false,
+    (r, i): r is AssigneeContact => !!r && r.email_notifications_enabled !== false && !(i === 1 && sameResource),
   );
-  const seen = new Set<string>();
   for (const r of recipients) {
-    if (seen.has(r.email)) continue;
-    seen.add(r.email);
     await sendOne(admin, ctx, r, { heading, message, previousStatus, extraCc: technicalLeadEmails });
   }
 }
@@ -281,7 +285,7 @@ export async function notifyObjectAssigneeChange(objectId: string, projectId: st
     if (
       ctx.functional &&
       ctx.functional.email_notifications_enabled !== false &&
-      ctx.functional.email !== ctx.developer?.email
+      ctx.functional.id !== ctx.developer?.id
     ) {
       await sendOne(admin, ctx, ctx.functional, {
         heading: "Technical consultant assigned",
