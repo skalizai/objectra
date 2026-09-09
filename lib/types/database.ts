@@ -109,6 +109,7 @@ export interface Project {
   start_date: string | null;
   target_go_live: string | null;
   pm_id: string | null;
+  technical_lead_id: string | null;
   company_code: string | null;
   stream: string | null;
   phase: ProjectPhase;

@@ -131,6 +131,7 @@ export async function updateProject(
   // pm_id is a resources.id (see migration 0016) — real editing access is
   // unaffected, it's still granted via project_members separately.
   const pmId = String(formData.get("pm_id") ?? "").trim();
+  const technicalLeadId = String(formData.get("technical_lead_id") ?? "").trim();
   const companyCode = String(formData.get("company_code") ?? "").trim();
   const stream = String(formData.get("stream") ?? "").trim();
 
@@ -149,6 +150,7 @@ export async function updateProject(
       start_date: startDate || null,
       target_go_live: targetGoLive || null,
       pm_id: pmId || null,
+      technical_lead_id: technicalLeadId || null,
       company_code: companyCode || null,
       stream: stream || null,
     })

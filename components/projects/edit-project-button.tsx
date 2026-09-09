@@ -137,14 +137,30 @@ export function EditProjectButton({
           </div>
 
           {pmOptions.length > 0 && (
-            <div>
-              <Label htmlFor="pm_id">Project manager</Label>
-              <select id="pm_id" name="pm_id" className={selectClass} defaultValue={project.pm_id ?? ""}>
-                <option value="">Unassigned</option>
-                {pmOptions.map((pm) => (
-                  <option key={pm.id} value={pm.id}>{pm.full_name}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="pm_id">Project manager</Label>
+                <select id="pm_id" name="pm_id" className={selectClass} defaultValue={project.pm_id ?? ""}>
+                  <option value="">Unassigned</option>
+                  {pmOptions.map((pm) => (
+                    <option key={pm.id} value={pm.id}>{pm.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="technical_lead_id">Technical lead</Label>
+                <select
+                  id="technical_lead_id"
+                  name="technical_lead_id"
+                  className={selectClass}
+                  defaultValue={project.technical_lead_id ?? ""}
+                >
+                  <option value="">Unassigned</option>
+                  {pmOptions.map((r) => (
+                    <option key={r.id} value={r.id}>{r.full_name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
