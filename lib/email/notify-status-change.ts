@@ -11,7 +11,6 @@ type Admin = ReturnType<typeof createAdminClient>;
 type Contact = { full_name: string; email: string; email_notifications_enabled: boolean };
 
 type AssigneeRow = {
-  assigned_role: AssignedRole;
   resource: Contact | null;
 };
 
@@ -86,23 +85,35 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
   const statusColor = statusPicklist.color ?? FALLBACK_STATUS_HEX;
   const pipelineStatuses = ((orgStatuses ?? []) as { value: string }[]).map((s) => s.value);
 
-  const [{ data: assignments }, { data: pmResource }, { data: extraRecipients }] = await Promise.all([
-    admin
-      .from("object_assignments")
-      .select("assigned_role, resource:resources(full_name, email, email_notifications_enabled)")
-      .eq("object_id", objectId),
-    project.pm_id
-      ? admin.from("resources").select("email, email_notifications_enabled").eq("id", project.pm_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    admin
-      .from("object_status_email_recipients")
-      .select("resource:resources(email, email_notifications_enabled)")
-      .eq("project_id", projectId),
-  ]);
+  // Developer and functional are fetched as two independent targeted
+  // queries rather than one query filtered client-side -- each assigned
+  // role must resolve on its own so a data quirk on one role's row (or a
+  // dedup mistake) can never silently drop the other consultant's email.
+  const [{ data: developerRow }, { data: functionalRow }, { data: pmResource }, { data: extraRecipients }] =
+    await Promise.all([
+      admin
+        .from("object_assignments")
+        .select("resource:resources(full_name, email, email_notifications_enabled)")
+        .eq("object_id", objectId)
+        .eq("assigned_role", "developer")
+        .maybeSingle(),
+      admin
+        .from("object_assignments")
+        .select("resource:resources(full_name, email, email_notifications_enabled)")
+        .eq("object_id", objectId)
+        .eq("assigned_role", "functional")
+        .maybeSingle(),
+      project.pm_id
+        ? admin.from("resources").select("email, email_notifications_enabled").eq("id", project.pm_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      admin
+        .from("object_status_email_recipients")
+        .select("resource:resources(email, email_notifications_enabled)")
+        .eq("project_id", projectId),
+    ]);
 
-  const rows = (assignments ?? []) as unknown as AssigneeRow[];
-  const developer = rows.find((a) => a.assigned_role === "developer")?.resource ?? null;
-  const functional = rows.find((a) => a.assigned_role === "functional")?.resource ?? null;
+  const developer = (developerRow as unknown as AssigneeRow | null)?.resource ?? null;
+  const functional = (functionalRow as unknown as AssigneeRow | null)?.resource ?? null;
 
   const ccSet = new Set<string>();
   if (pmResource?.email && pmResource.email_notifications_enabled !== false) ccSet.add(pmResource.email);

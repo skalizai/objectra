@@ -286,7 +286,7 @@ export default function ObjectStatusEmail({
       </div>
 
       <div style={{ fontFamily: FONT, fontSize: 12, color: V2.muted, textAlign: "center" as const, paddingTop: 14, lineHeight: "18px" }}>
-        Questions about this change? Reach out to your project lead.
+        Questions about this change? Reach out to your technical lead.
       </div>
     </EmailShellV2>
   );
