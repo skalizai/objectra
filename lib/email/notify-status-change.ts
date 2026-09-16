@@ -96,7 +96,7 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
   // a stray duplicate row (older data, a past race) would make maybeSingle()
   // error out on "multiple rows returned", and that error was being silently
   // swallowed here, resolving to null as if nobody were assigned at all.
-  const [{ data: developerRows }, { data: functionalRows }, { data: pmResource }, { data: technicalLeadResource }, { data: extraRecipients }] =
+  const [{ data: developerRows }, { data: functionalRows }, { data: pmResource }, { data: technicalLeadResource }] =
     await Promise.all([
       admin
         .from("object_assignments")
@@ -125,22 +125,20 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
             .eq("id", project.technical_lead_id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
-      admin
-        .from("object_status_email_recipients")
-        .select("resource:resources(email, email_notifications_enabled)")
-        .eq("project_id", projectId),
     ]);
 
   const developer = ((developerRows ?? [])[0] as unknown as AssigneeRow | undefined)?.resource ?? null;
   const functional = ((functionalRows ?? [])[0] as unknown as AssigneeRow | undefined)?.resource ?? null;
 
+  // CC is strictly the project's PM + Technical Lead -- nothing else. The
+  // Settings -> "Object status emails" extra-recipients list (0048) used to
+  // be folded in here too, but that let an unrelated project's roster pick
+  // leak onto every object email for this project; PM/Technical Lead are
+  // the only two people who should ever land in this CC.
   const ccSet = new Set<string>();
   if (pmResource?.email && pmResource.email_notifications_enabled !== false) ccSet.add(pmResource.email);
   if (technicalLeadResource?.email && technicalLeadResource.email_notifications_enabled !== false) {
     ccSet.add(technicalLeadResource.email);
-  }
-  for (const r of (extraRecipients ?? []) as unknown as { resource: Contact | null }[]) {
-    if (r.resource?.email && r.resource.email_notifications_enabled !== false) ccSet.add(r.resource.email);
   }
 
   return { objectRow, project, status, statusColor, pipelineStatuses, developer, functional, ccSet };
