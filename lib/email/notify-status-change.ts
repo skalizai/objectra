@@ -50,10 +50,9 @@ async function logEmailFailure(admin: Admin, toEmail: string, subject: string, p
  * (picklists.notify_email); if the object's current status doesn't have it
  * checked, this returns null and callers no-op silently.
  *
- * CC'd on everything sent using this context: the project's own PM
- * (projects.pm_id) always, plus whoever's configured in Settings → this
- * project's "Object status emails" list (0048) — both resolved straight
- * from the resource roster, no login required. */
+ * CC'd on everything sent using this context: strictly the project's own
+ * PM (projects.pm_id) and Technical Lead (projects.technical_lead_id) —
+ * both resolved straight from the resource roster, no login required. */
 async function getObjectNotificationContext(admin: Admin, objectId: string, projectId: string) {
   const [{ data: object }, { data: project }] = await Promise.all([
     admin.from("objects").select("*").eq("id", objectId).maybeSingle(),
@@ -113,7 +112,11 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
         .order("created_at", { ascending: false })
         .limit(1),
       project.pm_id
-        ? admin.from("resources").select("email, email_notifications_enabled").eq("id", project.pm_id).maybeSingle()
+        ? admin
+            .from("resources")
+            .select("id, email, email_notifications_enabled")
+            .eq("id", project.pm_id)
+            .maybeSingle()
         : Promise.resolve({ data: null }),
       // Technical Lead is a resource-roster field on the project (0050),
       // resolved the exact same way as PM -- no invite required, unlike the
@@ -121,7 +124,7 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
       project.technical_lead_id
         ? admin
             .from("resources")
-            .select("email, email_notifications_enabled")
+            .select("id, email, email_notifications_enabled")
             .eq("id", project.technical_lead_id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
@@ -130,34 +133,41 @@ async function getObjectNotificationContext(admin: Admin, objectId: string, proj
   const developer = ((developerRows ?? [])[0] as unknown as AssigneeRow | undefined)?.resource ?? null;
   const functional = ((functionalRows ?? [])[0] as unknown as AssigneeRow | undefined)?.resource ?? null;
 
-  // CC is strictly the project's PM + Technical Lead -- nothing else. The
-  // Settings -> "Object status emails" extra-recipients list (0048) used to
-  // be folded in here too, but that let an unrelated project's roster pick
-  // leak onto every object email for this project; PM/Technical Lead are
-  // the only two people who should ever land in this CC.
-  const ccSet = new Set<string>();
-  if (pmResource?.email && pmResource.email_notifications_enabled !== false) ccSet.add(pmResource.email);
-  if (technicalLeadResource?.email && technicalLeadResource.email_notifications_enabled !== false) {
-    ccSet.add(technicalLeadResource.email);
+  // CC is strictly the project's PM + Technical Lead -- nothing else. Keyed
+  // by resource id (not email) so that sendOne can tell a genuine self-CC
+  // (the PM/Technical Lead resource IS the recipient) apart from two
+  // different roster entries that merely happen to share an email address
+  // (e.g. a shared test inbox) -- only the former should be dropped from CC.
+  const ccByResource = new Map<string, string>();
+  if (pmResource?.id && pmResource.email && pmResource.email_notifications_enabled !== false) {
+    ccByResource.set(pmResource.id, pmResource.email);
+  }
+  if (technicalLeadResource?.id && technicalLeadResource.email && technicalLeadResource.email_notifications_enabled !== false) {
+    ccByResource.set(technicalLeadResource.id, technicalLeadResource.email);
   }
 
-  return { objectRow, project, status, statusColor, pipelineStatuses, developer, functional, ccSet };
+  return { objectRow, project, status, statusColor, pipelineStatuses, developer, functional, ccByResource };
 }
 
 type Ctx = NonNullable<Awaited<ReturnType<typeof getObjectNotificationContext>>>;
 
-/** Sends one object-status email to one recipient, CC'ing the shared
- * ccSet plus any extraCc (minus the recipient themselves). Never throws —
- * logs failures instead, same as every other notify-* helper in this app. */
+/** Sends one object-status email to one recipient, CC'ing the project's
+ * PM/Technical Lead (skipping either only if that resource IS the
+ * recipient — a real self-CC — not merely a matching email address) plus
+ * any extraCc. Never throws — logs failures instead, same as every other
+ * notify-* helper in this app. */
 async function sendOne(
   admin: Admin,
   ctx: Ctx,
-  to: Contact,
+  to: AssigneeContact,
   opts: { heading: string; message: string; previousStatus: string | null; extraCc?: string[] },
 ) {
-  const cc = new Set(ctx.ccSet);
+  const cc = new Set<string>();
+  for (const [resourceId, email] of ctx.ccByResource) {
+    if (resourceId === to.id) continue;
+    cc.add(email);
+  }
   for (const email of opts.extraCc ?? []) cc.add(email);
-  cc.delete(to.email);
 
   const subject = `${opts.heading} — ${ctx.objectRow.wricef_id ?? ctx.objectRow.title} (${ctx.project.name})`;
   try {
@@ -230,7 +240,7 @@ export async function notifyObjectStatusChange(
  * FYI naming who's now on development. Assigning the functional consultant
  * only notifies them directly — the technical side doesn't need an FYI for
  * that. See getObjectNotificationContext for the gating/CC rules (PM and
- * Technical Lead are both in ccSet on every send from there). */
+ * Technical Lead are both CC'd on every send from there). */
 export async function notifyObjectAssigneeChange(objectId: string, projectId: string, role: AssignedRole) {
   if (!process.env.RESEND_API_KEY) return;
   const admin = createAdminClient();
