@@ -27,11 +27,17 @@ export interface DeadlineScanResult {
   emailsSkipped: number;
 }
 
+type ResourceContact = { id: string; full_name: string; email: string; email_notifications_enabled: boolean };
+
 /** Daily job (section 7): for every active project with deadline alerts
  * enabled, finds non-live objects that are overdue or due within
- * deadline_lead_days, and sends one grouped email per recipient (assigned
- * members + the project PM) rather than one email per object. Idempotent —
- * a recipient already emailed for a project today is skipped. */
+ * deadline_lead_days, and sends one grouped email per project to that
+ * project's Technical Lead (CC the PM) — both resolved from the resource
+ * roster (projects.technical_lead_id / pm_id, migration 0050 / 0016), not
+ * project_members roles, so this doesn't depend on anyone having accepted
+ * an invite. Falls back to the PM as the sole recipient when there's no
+ * Technical Lead set. Idempotent — a recipient already emailed for a
+ * project today is skipped. */
 export async function runDeadlineScan(options?: { projectId?: string }): Promise<DeadlineScanResult> {
   const supabase = createAdminClient();
   const result: DeadlineScanResult = { projectsScanned: 0, emailsSent: 0, emailsFailed: 0, emailsSkipped: 0 };
@@ -65,42 +71,35 @@ export async function runDeadlineScan(options?: { projectId?: string }): Promise
     });
     if (atRisk.length === 0) continue;
 
-    const objectIds = atRisk.map((o) => o.id);
-    // object_assignments points at resources (migration 0013), not
-    // profiles directly — only resources that have actually been invited
-    // (profile_id set) have a login to notify.
-    const { data: assignments } = await supabase
-      .from("object_assignments")
-      .select("object_id, resource:resources(profile_id, full_name, email)")
-      .in("object_id", objectIds);
+    const [{ data: techLeadResource }, { data: pmResource }] = await Promise.all([
+      project.technical_lead_id
+        ? supabase
+            .from("resources")
+            .select("id, full_name, email, email_notifications_enabled")
+            .eq("id", project.technical_lead_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      project.pm_id
+        ? supabase
+            .from("resources")
+            .select("id, full_name, email, email_notifications_enabled")
+            .eq("id", project.pm_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
 
-    const { data: pmRows } = await supabase
-      .from("project_members")
-      .select("profile_id")
-      .eq("project_id", project.id)
-      .in("role", ["project_manager", "technical_lead", "pmo"])
-      .eq("is_active", true);
+    const techLead = techLeadResource as ResourceContact | null;
+    const pm = pmResource as ResourceContact | null;
 
-    const itemsByRecipient = new Map<string, ObjectRow[]>();
-    for (const a of (assignments ?? []) as unknown as { object_id: string; resource: { profile_id: string | null } | null }[]) {
-      const profileId = a.resource?.profile_id;
-      if (!profileId) continue;
-      const list = itemsByRecipient.get(profileId) ?? [];
-      const obj = atRisk.find((o) => o.id === a.object_id);
-      if (obj) list.push(obj);
-      itemsByRecipient.set(profileId, list);
-    }
-    for (const pm of pmRows ?? []) {
-      itemsByRecipient.set(pm.profile_id, atRisk);
-    }
+    // Technical Lead is the primary recipient, PM in CC; if there's no
+    // Technical Lead set for the project, the PM gets it directly instead.
+    const primary = techLead && techLead.email_notifications_enabled !== false ? techLead : null;
+    const fallback = !primary && pm && pm.email_notifications_enabled !== false ? pm : null;
+    const recipient = primary ?? fallback;
+    if (!recipient) continue;
 
-    const recipientIds = Array.from(itemsByRecipient.keys());
-    if (recipientIds.length === 0) continue;
-
-    const { data: recipientProfiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", recipientIds);
+    const cc =
+      primary && pm && pm.id !== primary.id && pm.email_notifications_enabled !== false ? pm.email : undefined;
 
     const { data: alreadySentToday } = await supabase
       .from("email_log")
@@ -110,56 +109,55 @@ export async function runDeadlineScan(options?: { projectId?: string }): Promise
       .gte("sent_at", startOfTodayIso());
     const alreadySent = new Set((alreadySentToday ?? []).map((r) => r.to_email));
 
-    for (const profile of recipientProfiles ?? []) {
-      if (alreadySent.has(profile.email)) {
-        result.emailsSkipped += 1;
-        continue;
-      }
+    if (alreadySent.has(recipient.email)) {
+      result.emailsSkipped += 1;
+      continue;
+    }
 
-      const items = (itemsByRecipient.get(profile.id) ?? []).map((o) => ({
-        title: o.title,
-        wricefId: o.wricef_id,
-        dueDate: o.due_date!,
-        daysRemaining: daysRemaining(o.due_date!),
-      }));
-      const subject = `Deadline alert — ${project.name}: ${items.length} object${items.length === 1 ? "" : "s"} need attention`;
+    const items = atRisk.map((o) => ({
+      title: o.title,
+      wricefId: o.wricef_id,
+      dueDate: o.due_date!,
+      daysRemaining: daysRemaining(o.due_date!),
+    }));
+    const subject = `Deadline alert — ${project.name}: ${items.length} object${items.length === 1 ? "" : "s"} need attention`;
 
-      try {
-        const sendResult = await getResendClient().emails.send({
-          from: EMAIL_FROM,
-          to: profile.email,
-          subject,
-          react: DeadlineAlertEmail({
-            recipientName: profile.full_name,
-            projectName: project.name,
-            items,
-            appUrl: APP_URL,
-          }),
-        });
+    try {
+      const sendResult = await getResendClient().emails.send({
+        from: EMAIL_FROM,
+        to: recipient.email,
+        cc,
+        subject,
+        react: DeadlineAlertEmail({
+          recipientName: recipient.full_name,
+          projectName: project.name,
+          items,
+          appUrl: APP_URL,
+        }),
+      });
 
-        await supabase.from("email_log").insert({
-          type: "deadline_alert",
-          to_email: profile.email,
-          subject,
-          project_id: project.id,
-          status: sendResult.error ? "failed" : "sent",
-          provider_id: sendResult.data?.id ?? null,
-          error: sendResult.error?.message ?? null,
-        });
+      await supabase.from("email_log").insert({
+        type: "deadline_alert",
+        to_email: recipient.email,
+        subject,
+        project_id: project.id,
+        status: sendResult.error ? "failed" : "sent",
+        provider_id: sendResult.data?.id ?? null,
+        error: sendResult.error?.message ?? null,
+      });
 
-        if (sendResult.error) result.emailsFailed += 1;
-        else result.emailsSent += 1;
-      } catch (err) {
-        result.emailsFailed += 1;
-        await supabase.from("email_log").insert({
-          type: "deadline_alert",
-          to_email: profile.email,
-          subject,
-          project_id: project.id,
-          status: "failed",
-          error: err instanceof Error ? err.message : "Unknown error",
-        });
-      }
+      if (sendResult.error) result.emailsFailed += 1;
+      else result.emailsSent += 1;
+    } catch (err) {
+      result.emailsFailed += 1;
+      await supabase.from("email_log").insert({
+        type: "deadline_alert",
+        to_email: recipient.email,
+        subject,
+        project_id: project.id,
+        status: "failed",
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
     }
   }
 

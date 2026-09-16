@@ -636,3 +636,42 @@ Object status-change/reassignment emails (`notifyObjectStatusChange`/`notifyObje
 - `technical_lead` was dropped from the CC list entirely — that role is typically already the object's assigned technical consultant (already in the `to` list), and wasn't part of what was asked for here.
 - `components/settings/object-status-email-form.tsx` (new) — add/remove recipient list, mirrors `SlaEscalationForm`'s pattern but flat (no tiers). Shows the resolved PM's name in its description text.
 - `lib/actions/objects.ts`: `addObjectStatusEmailRecipient`/`removeObjectStatusEmailRecipient`. `lib/data/objects.ts`: `getObjectStatusEmailRecipients`.
+Build a "trusted by" logo marquee section that sits directly below the top
+navigation bar of my website.
+
+Layout & content:
+- Full-width band, light neutral background, ~100px tall, with generous
+  vertical padding.
+- Optional small centered caption above the logos: "Trusted by industry
+  leaders" in uppercase, letter-spaced, muted gray, 12px.
+- Logos: SAP, Oracle, IBM, Microsoft, Salesforce, AWS, Accenture, Infosys.
+  Use SVG logos, each normalized to the same optical height (~32px) with
+  auto width, spaced ~64px apart.
+
+Animation:
+- Logos scroll horizontally right-to-left in an infinite, perfectly seamless
+  loop — no jump or gap at the wrap point.
+- Achieve this by rendering the logo list TWICE inside a flex track and
+  animating the track with CSS keyframes from translateX(0) to
+  translateX(-50%), linear timing, 40s duration, infinite.
+- Use transform only (GPU-accelerated), no JS scroll listeners, no layout
+  thrash.
+- Pause the animation on hover over the strip.
+- Logos render in grayscale at ~60% opacity by default and transition to
+  full color at 100% opacity on individual hover (250ms ease).
+- Fade out both left and right edges using a CSS mask-image linear-gradient
+  so logos appear to emerge from and dissolve into the background.
+- Respect prefers-reduced-motion: reduce — if set, stop the animation and
+  show a static centered, wrapped row of logos instead.
+
+Technical:
+- React + Tailwind CSS (define the keyframes in the Tailwind config or a
+  <style> block).
+- Single self-contained component named <LogoMarquee />.
+- Logo list must be a data array at the top of the file so I can add or
+  remove brands in one place.
+- Fully responsive: on mobile reduce logo height to 24px, spacing to 40px,
+  and speed up the duration to 25s.
+- Accessible: wrap the strip in a container with aria-label="Our partners",
+  give each logo meaningful alt text, and mark the duplicated second set
+  aria-hidden="true" so screen readers don't read logos twice.
