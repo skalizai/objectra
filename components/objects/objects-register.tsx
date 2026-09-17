@@ -64,13 +64,15 @@ export function ObjectsRegister({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return items.filter((o) => {
-      if (q && !`${o.title} ${o.wricef_id ?? ""}`.toLowerCase().includes(q)) return false;
-      if (moduleFilter !== "all" && o.module !== moduleFilter) return false;
-      if (typeFilter !== "all" && o.object_type !== typeFilter) return false;
-      if (statusFilter !== "all" && o.status !== statusFilter) return false;
-      return true;
-    });
+    return items
+      .filter((o) => {
+        if (q && !`${o.title} ${o.wricef_id ?? ""}`.toLowerCase().includes(q)) return false;
+        if (moduleFilter !== "all" && o.module !== moduleFilter) return false;
+        if (typeFilter !== "all" && o.object_type !== typeFilter) return false;
+        if (statusFilter !== "all" && o.status !== statusFilter) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [items, search, moduleFilter, typeFilter, statusFilter]);
 
   const selectClass =
