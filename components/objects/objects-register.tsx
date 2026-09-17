@@ -72,7 +72,7 @@ export function ObjectsRegister({
         if (statusFilter !== "all" && o.status !== statusFilter) return false;
         return true;
       })
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort((a, b) => new Date(b.last_activity_at).getTime() - new Date(a.last_activity_at).getTime());
   }, [items, search, moduleFilter, typeFilter, statusFilter]);
 
   const selectClass =

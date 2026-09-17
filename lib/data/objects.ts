@@ -7,6 +7,13 @@ export interface ObjectWithAssignees extends ObjectRow {
     resource: Pick<Resource, "id" | "full_name" | "email">;
     assigned_role: AssignedRole;
   }[];
+  // Most recent of: the object's own updated_at (title/status/description/etc
+  // edits, kept current by a DB trigger) and the newest object_assignments
+  // row's created_at for this object. Assignment changes go through a
+  // separate table (setObjectAssignee deletes+reinserts, it doesn't touch
+  // objects.updated_at), so without this a reassignment wouldn't bump an
+  // object's place in a "recently active" sort.
+  last_activity_at: string;
 }
 
 export async function listObjectsForProject(projectId: string): Promise<ObjectWithAssignees[]> {
@@ -24,19 +31,27 @@ export async function listObjectsForProject(projectId: string): Promise<ObjectWi
   const objectIds = objectList.map((o) => o.id);
   const { data: assignments } = await supabase
     .from("object_assignments")
-    .select("id, object_id, assigned_role, resource:resources(id, full_name, email)")
+    .select("id, object_id, assigned_role, created_at, resource:resources(id, full_name, email)")
     .in("object_id", objectIds);
 
   const byObject = new Map<string, ObjectWithAssignees["assignees"]>();
+  const latestAssignmentByObject = new Map<string, string>();
   for (const row of (assignments ?? []) as unknown as (ObjectAssignment & {
     resource: Pick<Resource, "id" | "full_name" | "email">;
   })[]) {
     const list = byObject.get(row.object_id) ?? [];
     list.push({ id: row.id, resource: row.resource, assigned_role: row.assigned_role });
     byObject.set(row.object_id, list);
+
+    const current = latestAssignmentByObject.get(row.object_id);
+    if (!current || row.created_at > current) latestAssignmentByObject.set(row.object_id, row.created_at);
   }
 
-  return objectList.map((o) => ({ ...o, assignees: byObject.get(o.id) ?? [] }));
+  return objectList.map((o) => {
+    const latestAssignment = latestAssignmentByObject.get(o.id);
+    const last_activity_at = latestAssignment && latestAssignment > o.updated_at ? latestAssignment : o.updated_at;
+    return { ...o, assignees: byObject.get(o.id) ?? [], last_activity_at };
+  });
 }
 
 /** Every resource in the org roster is assignable as a Functional/Technical
