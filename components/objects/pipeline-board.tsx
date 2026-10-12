@@ -68,7 +68,9 @@ export function PipelineBoard({
 
       <div className="scroll-x-top flex gap-4 overflow-x-auto pb-2 pt-5">
         {visibleStatuses.map((column) => {
-          const columnItems = items.filter((o) => o.status === column.value);
+          const columnItems = items
+            .filter((o) => o.status === column.value)
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
           return (
             <div key={column.id} className="w-[260px] shrink-0">
               <div className="mb-2 flex items-center gap-2 px-1">
